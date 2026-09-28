@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [{
+            "label": "Compile",
+            "type": "shell",
+            "command": "npm run compile",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "npm run build",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Serve",
+            "type": "shell",
+            "command": "npm run serve",
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}

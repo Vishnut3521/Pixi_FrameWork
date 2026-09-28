@@ -1,0 +1,28 @@
+{
+  "loadingScreen": {
+    "images": {
+      "loadingBackground": "assets/images/splashBackground.jpg",
+      "loadingLogo": "assets/images/logo.jpg"
+    },
+    "sounds": {
+
+    },
+    "json": {
+      
+    }
+  },
+  "gameScreen": {
+    "images": {
+      "background": "assets/images/background.jpg",
+      "reelFrame": "assets/images/reelFrame.jpg",
+      "logo1": "assets/images/logo.webp",
+      "splashBackground": "assets/images/splashBackground.jpg"
+    },
+    "sounds": {
+
+    },
+    "json": {
+      "backgroundConfig": "assets/json/resposive/background.json"
+    }
+  }
+}

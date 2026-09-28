@@ -1,0 +1,84 @@
+{
+    
+    "loadingLogo":{
+        "position":{
+            "desktop":{
+                "landscape":{
+                    "x":0,
+                    "y":-200
+                }
+            },
+            "mobile":{
+                "portrait":{
+                    "x":0,
+                    "y":400
+                },
+                "landscape":{
+                    "x":0,
+                    "y":-400
+                }
+            }
+        },
+        "scale":{
+            "desktop":{
+                "landscape":{
+                    "x":1.4,
+                    "y":1.4
+                }
+            }
+        }
+    },
+    "loadingBar":{
+        "position":{
+            "desktop":{
+                "landscape":{
+                    "x":0,
+                    "y":300
+                }
+            }
+        }
+    },
+
+    "splahButton":{
+        "position":{
+            "desktop":{
+                "landscape":{
+                    "x":-27,
+                    "y":244
+                }
+            }
+        },
+        "scale":{
+            "desktop":{
+                "landscape":{
+                    "x":0.7,
+                    "y":0.7
+                }
+            }
+        }
+    },
+
+
+    "splashScreenBackground":{
+        "scale":{
+            "desktop":{
+                "landscape":{
+                    "x":1.15,
+                    "y":1.15
+                }
+            }
+        }
+    },
+
+
+    "multiplierText":{
+        "position":{
+            "desktop":{
+                "landscape":{
+                    "x":0,
+                    "y":-400
+                }
+            }
+        }
+    }
+}
