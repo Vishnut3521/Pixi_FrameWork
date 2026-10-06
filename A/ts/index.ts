@@ -19,8 +19,8 @@ export class Main extends Game {
         // Splash screen initialization
         engine.eventDispatcher.addCustomListener({ type: "button", name: "splash_button" }, (e: any) => {
             if (e.data?.event === "click" && !this.socket) {
-                this.socket = new Socket();
-                this.initSocket();
+                // this.socket = new Socket();
+                // this.initSocket();
             }
         });
 

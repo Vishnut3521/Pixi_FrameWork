@@ -1,0 +1,30 @@
+{
+    "loading": {
+        "images": {
+            "loadingLogo": "assets/images/loadingLogo.png"
+        },
+        "json": {}
+    },
+
+    "preLoad": {
+        "images": {
+            "splashScreenBackground": "assets/images/background.png",
+            "splahButton": "assets/images/logo.png",
+            "gameBackground": "assets/images/Gamebackground.png"
+        },
+
+        "json": {
+            "birdSpriteSheet": "assets/sprites/bird-spritesheet.json"
+        },
+
+        "spine": {
+            
+        }
+    },
+
+    "postLoad": {
+        "sounds": {
+            
+        }
+    }
+}

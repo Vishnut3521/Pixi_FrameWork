@@ -1,0 +1,26 @@
+{
+    "frames": {
+        "bird_1.png": { "frame": { "x": 0, "y": 0, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_2.png": { "frame": { "x": 261, "y": 0, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_3.png": { "frame": { "x": 522, "y": 0, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_4.png": { "frame": { "x": 783, "y": 0, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_5.png": { "frame": { "x": 1044, "y": 0, "w": 262, "h": 400 }, "sourceSize": { "w": 262, "h": 400 } },
+        "bird_6.png": { "frame": { "x": 0, "y": 400, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_7.png": { "frame": { "x": 261, "y": 400, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_8.png": { "frame": { "x": 522, "y": 400, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_9.png": { "frame": { "x": 783, "y": 400, "w": 261, "h": 400 }, "sourceSize": { "w": 261, "h": 400 } },
+        "bird_10.png": { "frame": { "x": 1044, "y": 400, "w": 262, "h": 400 }, "sourceSize": { "w": 262, "h": 400 } }
+    },
+    "animations": {
+        "fly": [
+            "bird_1.png", "bird_2.png", "bird_3.png", "bird_4.png", "bird_5.png",
+            "bird_6.png", "bird_7.png", "bird_8.png", "bird_9.png", "bird_10.png"
+        ]
+    },
+    "meta": {
+        "image": "bird-spritesheet.png",
+        "format": "RGBA8888",
+        "size": { "w": 1306, "h": 800 },
+        "scale": "1"
+    }
+}

@@ -14,6 +14,7 @@ export class GameApplication {
 
     constructor() {
         this.app = new Application();
+        engine.app = this.app
     }
 
     public async init(): Promise<void> {
@@ -23,7 +24,7 @@ export class GameApplication {
         document.body.appendChild(this.app.canvas);
         this.gameObject = new GameObject(this.LANDSCAPE_WIDTH, this.LANDSCAPE_HEIGHT);
         this.app.stage.addChild(this.gameObject);
-        this.resize();
+        this.resize(()=>{});
     }
 
     private setupPage(): void {
@@ -55,7 +56,7 @@ export class GameApplication {
         }
     }
 
-    public resize(): void {
+    public resize(callback : () => void): void {
         if (this.resizeAnimationFrame !== null) cancelAnimationFrame(this.resizeAnimationFrame);
 
         this.resizeAnimationFrame = requestAnimationFrame(() => {
@@ -70,6 +71,9 @@ export class GameApplication {
             this.app.canvas.style.width = `${design.width * scale}px`;
             this.app.canvas.style.height = `${design.height * scale}px`;
             this.gameObject.resize(design.width, design.height);
+            setTimeout(() => {
+                callback()
+            }, 0);
         });
     }
 }

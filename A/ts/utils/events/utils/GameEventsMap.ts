@@ -1,6 +1,5 @@
 import { GameEventType } from "./EventsType";
 import { GameEventName } from "./EventsName";
-import { Button } from "../../../../../B/ts/objects/PixiObjects";
 
 export interface GameEventMap {
     [GameEventType.GAME]:

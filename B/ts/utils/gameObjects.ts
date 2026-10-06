@@ -6,7 +6,6 @@ export class GameObjects {
         if (this.OBJECTS[name]) {
             throw new Error(`Object "${name}" already exists.`);
         }
-
         this.OBJECTS[name] = object;
     }
 

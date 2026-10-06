@@ -48567,29 +48567,6 @@ init_Sprite();
 init_eventemitter3();
 extensions.add(browserExt, webworkerExt);
 
-// assets/json/assets.json
-var assets_default = {
-  loading: {
-    images: {
-      loadingLogo: "assets/images/loadingLogo.png"
-    },
-    sounds: {},
-    json: {}
-  },
-  preLoad: {
-    images: {
-      splashScreenBackground: "assets/images/background.png",
-      splahButton: "assets/images/logo.png",
-      gameBackground: "assets/images/Gamebackground.png"
-    },
-    sounds: {},
-    json: {
-      birdSpriteSheet: "assets/sprites/bird-spritesheet.json"
-    }
-  },
-  postLoad: {}
-};
-
 // ts/utils/gameObjects.ts
 var GameObjects = class {
   constructor() {
@@ -48853,12 +48830,9 @@ var ObjectResizer = class {
   update(objectName) {
     const object = engine.gameObjects.OBJECTS[objectName];
     if (!object) {
-      console.warn(`Object "${objectName}" not found in GameObjects.`);
       return;
     }
     const config3 = this.config[objectName];
-    console.log(config3);
-    console.log(object);
     if (!config3) {
       this.applyDefaults(object);
       return;
@@ -53268,9 +53242,78 @@ window.engine = engine;
 
 // ts/loader/AssetsLoader.ts
 var AssetLoader = class {
-  constructor() {
+  constructor(config3, jsonBasePath = "assets/json") {
     this.totalAssets = 0;
     this.loadedAssets = 0;
+    this.assetConfig = {};
+    this.jsonFiles = {};
+    this.assetUrls = /* @__PURE__ */ new Map();
+    this.errors = [];
+    this.config = config3;
+    this.jsonBasePath = jsonBasePath;
+    this.initialize().catch((error) => {
+      console.error("Error initializing AssetLoader:", error);
+    });
+  }
+  async initialize() {
+    if (this.config) {
+      await this.loadJson("config");
+    }
+    if (this.config.json?.manifest) {
+      const manifest = await this.loadJson(this.config.json.manifest);
+      if (manifest) {
+        this.assetConfig = manifest;
+      }
+    }
+    if (this.config.soundsEnabled && this.config.json?.sounds) {
+      await this.loadJson(this.config.json.sounds);
+    }
+    this.registerAssetUrls();
+    await this.loadLoadingAssets();
+  }
+  async loadJson(name) {
+    const fileName = name.endsWith(".json") ? name : `${name}.json`;
+    const url = `${this.jsonBasePath}/${fileName}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      this.jsonFiles[name] = data;
+      return data;
+    } catch (error) {
+      this.handleError({
+        alias: name,
+        url,
+        type: "control-json",
+        error
+      });
+      return null;
+    }
+  }
+  registerAssetUrls() {
+    for (const groupName of ["loading", "preLoad", "postLoad"]) {
+      const group = this.assetConfig[groupName];
+      if (!group) {
+        continue;
+      }
+      for (const [alias, url] of Object.entries(group.images ?? {})) {
+        this.assetUrls.set(alias, url);
+      }
+      for (const [alias, url] of Object.entries(group.json ?? {})) {
+        this.assetUrls.set(alias, url);
+      }
+      if (this.config.soundsEnabled) {
+        for (const [alias, url] of Object.entries(group.sounds ?? {})) {
+          this.assetUrls.set(alias, url);
+        }
+      }
+      for (const [alias, spine] of Object.entries(group.spine ?? {})) {
+        this.assetUrls.set(`${alias}:json`, spine.json);
+        this.assetUrls.set(`${alias}:atlas`, spine.atlas);
+      }
+    }
   }
   async loadLoadingAssets() {
     this.totalAssets = this.getAssetCount("loading") + this.getAssetCount("preLoad");
@@ -53295,28 +53338,20 @@ var AssetLoader = class {
     await this.loadAssets("preLoad");
     await new Promise((resolve) => setTimeout(resolve, 1e3));
   }
+  async loadPostLoadAssets() {
+    await this.loadAssets("postLoad");
+  }
   async loadAssets(groupName) {
-    const group = assets_default[groupName];
-    const assets = [
-      ...Object.entries(group.images ?? {}).map(([alias, src]) => ({ alias, src })),
-      ...Object.entries(group.sounds ?? {}).map(([alias, src]) => ({ alias, src })),
-      ...Object.entries(group.json ?? {}).map(([alias, src]) => ({ alias, src }))
-    ];
+    console.log(this.assetConfig);
+    const group = this.assetConfig[groupName];
+    if (!group) {
+      return;
+    }
+    console.log(`Loading assets for group: ${groupName}`, group);
+    const assets = this.createAssetList(group);
     if (assets.length === 0) {
       return;
     }
-    const events = {
-      preLoad: {
-        start: "pre_loadStart",
-        progress: "pre_loadProgress",
-        finish: "pre_loadComplete"
-      },
-      postLoad: {
-        start: "post_loadStart",
-        progress: "post_loadProgress",
-        finish: "post_loadComplete"
-      }
-    };
     if (groupName === "preLoad") {
       engine.eventDispatcher.DISPATCH({
         type: "loader",
@@ -53326,20 +53361,23 @@ var AssetLoader = class {
         }
       });
     }
-    await Assets.load(assets, (progress) => {
-      if (groupName === "loading" || groupName === "preLoad") {
-        const groupLoaded = Math.floor(progress * assets.length);
-        const previousGroupLoaded = Math.floor(
-          this.loadedAssets % assets.length
-        );
-        if (groupLoaded > previousGroupLoaded) {
-          this.loadedAssets += groupLoaded - previousGroupLoaded;
+    if (groupName === "postLoad") {
+      engine.eventDispatcher.DISPATCH({
+        type: "loader",
+        name: "post_loadStart",
+        data: {
+          loadProgressPercentage: 0
         }
+      });
+    }
+    for (let i2 = 0; i2 < assets.length; i2++) {
+      await this.loadSingleAsset(assets[i2]);
+      this.loadedAssets++;
+      const groupProgress = Math.round((i2 + 1) / assets.length * 100);
+      if (groupName === "loading" || groupName === "preLoad") {
         const percentage = Math.min(
           100,
-          Math.round(
-            this.loadedAssets / this.totalAssets * 100
-          )
+          Math.round(this.loadedAssets / this.totalAssets * 100)
         );
         engine.eventDispatcher.DISPATCH({
           type: "loader",
@@ -53348,26 +53386,26 @@ var AssetLoader = class {
             loadProgressPercentage: percentage
           }
         });
-        if (groupName === "preLoad") {
-          engine.eventDispatcher.DISPATCH({
-            type: "loader",
-            name: "pre_loadProgress",
-            data: {
-              loadProgressPercentage: Math.round(progress * 100)
-            }
-          });
-        }
-        return;
       }
-      const event = events[groupName];
-      engine.eventDispatcher.DISPATCH({
-        type: "loader",
-        name: event.progress,
-        data: {
-          loadProgressPercentage: Math.round(progress * 100)
-        }
-      });
-    });
+      if (groupName === "preLoad") {
+        engine.eventDispatcher.DISPATCH({
+          type: "loader",
+          name: "pre_loadProgress",
+          data: {
+            loadProgressPercentage: groupProgress
+          }
+        });
+      }
+      if (groupName === "postLoad") {
+        engine.eventDispatcher.DISPATCH({
+          type: "loader",
+          name: "post_loadProgress",
+          data: {
+            loadProgressPercentage: groupProgress
+          }
+        });
+      }
+    }
     if (groupName === "loading") {
       this.loadedAssets = this.getAssetCount("loading");
       engine.eventDispatcher.DISPATCH({
@@ -53411,9 +53449,127 @@ var AssetLoader = class {
       });
     }
   }
+  async loadSingleAsset(asset) {
+    try {
+      await Assets.load({
+        alias: asset.alias,
+        src: asset.src
+      });
+    } catch (error) {
+      this.handleError({
+        alias: asset.alias,
+        url: asset.src,
+        type: asset.type,
+        error
+      });
+    }
+  }
+  createAssetList(group) {
+    const assets = [];
+    for (const [alias, src] of Object.entries(group.images ?? {})) {
+      assets.push({
+        alias,
+        src,
+        type: "image"
+      });
+    }
+    for (const [alias, src] of Object.entries(group.json ?? {})) {
+      assets.push({
+        alias,
+        src,
+        type: "json"
+      });
+    }
+    if (this.config.soundsEnabled) {
+      for (const [alias, src] of Object.entries(group.sounds ?? {})) {
+        assets.push({
+          alias,
+          src,
+          type: "sound"
+        });
+      }
+    }
+    for (const [alias, spine] of Object.entries(group.spine ?? {})) {
+      if (spine.json) {
+        assets.push({
+          alias: `${alias}:json`,
+          src: spine.json,
+          type: "spine-json"
+        });
+      }
+      if (spine.atlas) {
+        assets.push({
+          alias: `${alias}:atlas`,
+          src: spine.atlas,
+          type: "spine-atlas"
+        });
+      }
+    }
+    return assets;
+  }
   getAssetCount(groupName) {
-    const group = assets_default[groupName];
-    return Object.keys(group.images ?? {}).length + Object.keys(group.sounds ?? {}).length + Object.keys(group.json ?? {}).length;
+    const group = this.assetConfig[groupName];
+    if (!group) {
+      return 0;
+    }
+    let count2 = Object.keys(group.images ?? {}).length + Object.keys(group.json ?? {}).length;
+    if (this.config.soundsEnabled) {
+      count2 += Object.keys(group.sounds ?? {}).length;
+    }
+    for (const spine of Object.values(group.spine ?? {})) {
+      if (spine.json) {
+        count2++;
+      }
+      if (spine.atlas) {
+        count2++;
+      }
+    }
+    return count2;
+  }
+  handleError(errorData) {
+    this.errors.push(errorData);
+    console.error(
+      `[AssetLoader] Failed to load: ${errorData.alias}`,
+      errorData.url,
+      errorData.error
+    );
+    engine.eventDispatcher.DISPATCH({
+      type: "loader",
+      name: "asset_load_error",
+      data: {
+        alias: errorData.alias,
+        url: errorData.url,
+        assetType: errorData.type,
+        error: errorData.error
+      }
+    });
+  }
+  get(name) {
+    return Assets.get(name);
+  }
+  getUrl(name) {
+    return this.assetUrls.get(name);
+  }
+  getJson(name) {
+    return this.jsonFiles[name];
+  }
+  getConfig() {
+    return this.config;
+  }
+  getManifest() {
+    return this.assetConfig;
+  }
+  has(name) {
+    return this.assetUrls.has(name);
+  }
+  isLoaded(name) {
+    return Assets.get(name) !== void 0;
+  }
+  getErrors() {
+    return [...this.errors];
+  }
+  hasErrors() {
+    return this.errors.length > 0;
   }
 };
 
@@ -54033,6 +54189,7 @@ var GameScreen = class extends GameContainer {
     this.bird = new Bird();
     this.multiplier = new Multiplier({ name: "multiplierText", stage: "GAME START" });
     this.bird.x = -1920;
+    this.bird.setAnimationSpeed(0.3);
     this.addChild(this.bird);
     this.addChild(this.multiplier);
     this.placeBetBtn = new PlaceBetButton("PlaceBet", "PLACE BET", { name: "placeBet", width: 180, height: 50 });
@@ -54069,12 +54226,51 @@ var GameScreen = class extends GameContainer {
   }
 };
 
+// assets/json/config.json
+var config_default = {
+  json: {
+    config: "config",
+    manifest: "manifest",
+    sounds: "sounds"
+  },
+  soundsEnabled: false,
+  loadingScreen: true,
+  splashScreen: true,
+  gameScreen: true
+};
+
+// ts/config/config.ts
+var Config = class _Config {
+  constructor() {
+    Object.assign(this, structuredClone(config_default));
+  }
+  static getInstance() {
+    if (!_Config.instance) {
+      _Config.instance = new _Config();
+    }
+    return _Config.instance;
+  }
+};
+
 // ts/main/game.ts
 var Game = class {
   constructor() {
     this.lodingScreen = null;
     this.gameScreen = null;
     this.splashScreen = null;
+    this.isLoadingScreenEnabled = true;
+    this.isSplashScreenEnabled = true;
+    this.isGameScreenEnabled = true;
+    this.config = Config.getInstance();
+    if (this.config.loadingScreen !== void 0) {
+      this.isLoadingScreenEnabled = this.config.loadingScreen;
+    }
+    if (this.config.splashScreen !== void 0) {
+      this.isSplashScreenEnabled = this.config.splashScreen;
+    }
+    if (this.config.gameScreen !== void 0) {
+      this.isGameScreenEnabled = this.config.gameScreen;
+    }
     this.start();
   }
   async start() {
@@ -54086,11 +54282,21 @@ var Game = class {
   }
   async initEventListeners() {
     engine.eventDispatcher.addCustomListener({ type: "loader", name: "load_complete" }, (e2) => {
-      engine.eventDispatcher.DISPATCH({ type: "game", name: "loading_screen", data: {} });
-      this.loadAsets.loadGameScreenAssets();
+      if (this.isLoadingScreenEnabled) {
+        engine.eventDispatcher.DISPATCH({ type: "game", name: "loading_screen", data: {} });
+        this.loadAsets.loadGameScreenAssets();
+      } else {
+        this.loadAsets.loadGameScreenAssets();
+      }
     });
     engine.eventDispatcher.addCustomListener({ type: "loader", name: "pre_loadComplete" }, (e2) => {
-      engine.eventDispatcher.DISPATCH({ type: "game", name: "splash_screen", data: {} });
+      if (this.isSplashScreenEnabled) {
+        engine.eventDispatcher.DISPATCH({ type: "game", name: "splash_screen", data: {} });
+      } else {
+        if (this.isGameScreenEnabled) {
+          engine.eventDispatcher.DISPATCH({ type: "game", name: "game_screen", data: {} });
+        }
+      }
     });
     engine.eventDispatcher.addCustomListener({ type: "button", name: "splash_button" }, (e2) => {
       if (e2.data.event === "click") {
@@ -54132,8 +54338,7 @@ var Game = class {
     this.Engine = new Engine();
     this.application = new GameApplication();
     await this.application.init();
-    this.loadAsets = new AssetLoader();
-    await this.loadAsets.loadLoadingAssets();
+    this.loadAsets = new AssetLoader(this.config);
     this.events();
     this.resize();
   }
@@ -54145,441 +54350,6 @@ var Game = class {
     });
   }
 };
-
-// ts/crash/crash.ts
-var Socket = class {
-  constructor() {
-    this.listeners = /* @__PURE__ */ new Map();
-    this.bettingTimer = null;
-    this.multiplierTimer = null;
-    this.crashWaitTimer = null;
-    this.roundStartWaitTimer = null;
-    this.BETTING_TIME = 5;
-    this.WAIT_TIME = 3e3;
-    this.UPDATE_INTERVAL = 16;
-    this.roundId = 0;
-    this.multiplier = 1;
-    this.crashPoint = 1;
-    this.isBetting = false;
-    this.isRunning = false;
-    this.isWaiting = false;
-    this.betData = {
-      amount: 0,
-      placed: false,
-      cashedOut: false,
-      cashoutMultiplier: 0,
-      winAmount: 0
-    };
-    this.multiplierRanges = [
-      { start: 1, end: 2, duration: 3e3 },
-      { start: 2, end: 5, duration: 3e3 },
-      { start: 5, end: 20, duration: 3e3 },
-      { start: 20, end: 100, duration: 3e3 },
-      { start: 100, end: 500, duration: 5e3 },
-      { start: 500, end: 5e3, duration: 1e4 }
-    ];
-    this.connect();
-  }
-  connect() {
-    this.emit({
-      type: "connected",
-      data: { message: "Socket connected" }
-    });
-    this.startCrashWait();
-  }
-  on(type, callback) {
-    const callbacks = this.listeners.get(type) || [];
-    callbacks.push(callback);
-    this.listeners.set(type, callbacks);
-  }
-  off(type, callback) {
-    const callbacks = this.listeners.get(type);
-    if (!callbacks) return;
-    const index = callbacks.indexOf(callback);
-    if (index !== -1) {
-      callbacks.splice(index, 1);
-    }
-    if (callbacks.length === 0) {
-      this.listeners.delete(type);
-    }
-  }
-  emit(message) {
-    const callbacks = this.listeners.get(message.type);
-    if (!callbacks) return;
-    callbacks.forEach((callback) => callback(message));
-  }
-  placeBet(amount) {
-    if (!this.isBetting) {
-      this.emit({
-        type: "bet_rejected",
-        data: {
-          errorCode: "BETTING_CLOSED",
-          message: "Betting is not open"
-        }
-      });
-      return;
-    }
-    if (this.betData.placed) {
-      this.emit({
-        type: "bet_rejected",
-        data: {
-          errorCode: "BET_ALREADY_PLACED",
-          message: "Bet already placed"
-        }
-      });
-      return;
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      this.emit({
-        type: "bet_rejected",
-        data: {
-          errorCode: "INVALID_AMOUNT",
-          message: "Invalid bet amount"
-        }
-      });
-      return;
-    }
-    this.betData.amount = amount;
-    this.betData.placed = true;
-    this.betData.cashedOut = false;
-    this.betData.cashoutMultiplier = 0;
-    this.betData.winAmount = 0;
-    this.emit({
-      type: "bet_placed",
-      data: {
-        betAmount: amount,
-        roundId: this.roundId,
-        message: "Bet placed successfully"
-      }
-    });
-  }
-  cashout() {
-    if (!this.isRunning) {
-      this.emit({
-        type: "cashout_rejected",
-        data: {
-          errorCode: "ROUND_NOT_RUNNING",
-          message: "Round is not running"
-        }
-      });
-      return;
-    }
-    if (!this.betData.placed) {
-      this.emit({
-        type: "cashout_rejected",
-        data: {
-          errorCode: "NO_BET",
-          message: "No active bet"
-        }
-      });
-      return;
-    }
-    if (this.betData.cashedOut) {
-      this.emit({
-        type: "cashout_rejected",
-        data: {
-          errorCode: "ALREADY_CASHED_OUT",
-          message: "Bet already cashed out"
-        }
-      });
-      return;
-    }
-    const cashoutMultiplier = this.multiplier;
-    const winAmount = this.betData.amount * cashoutMultiplier;
-    const profit = winAmount - this.betData.amount;
-    this.betData.cashedOut = true;
-    this.betData.cashoutMultiplier = cashoutMultiplier;
-    this.betData.winAmount = winAmount;
-    this.emit({
-      type: "cashout",
-      data: {
-        multiplier: cashoutMultiplier,
-        betAmount: this.betData.amount,
-        winAmount,
-        profit,
-        roundId: this.roundId,
-        message: "Cashout successful"
-      }
-    });
-  }
-  startCrashWait() {
-    this.stopCrashWaitTimer();
-    this.stopRoundStartWaitTimer();
-    this.stopBettingTimer();
-    this.stopMultiplierTimer();
-    this.isWaiting = true;
-    this.isBetting = false;
-    this.isRunning = false;
-    this.crashWaitTimer = setTimeout(() => {
-      this.crashWaitTimer = null;
-      this.isWaiting = false;
-      this.startBettingPhase();
-    }, this.WAIT_TIME);
-  }
-  startBettingPhase() {
-    this.stopBettingTimer();
-    this.isWaiting = false;
-    this.isBetting = true;
-    this.isRunning = false;
-    this.roundId++;
-    this.multiplier = 1;
-    this.betData = {
-      amount: 0,
-      placed: false,
-      cashedOut: false,
-      cashoutMultiplier: 0,
-      winAmount: 0
-    };
-    let timer = this.BETTING_TIME;
-    this.emit({
-      type: "bet_timer",
-      data: {
-        timer,
-        roundId: this.roundId,
-        message: "Betting started"
-      }
-    });
-    this.bettingTimer = setInterval(() => {
-      timer--;
-      if (timer > 0) {
-        this.emit({
-          type: "bet_timer",
-          data: {
-            timer,
-            roundId: this.roundId
-          }
-        });
-        return;
-      }
-      this.stopBettingTimer();
-      this.isBetting = false;
-      this.emit({
-        type: "bet_closed",
-        data: {
-          betAmount: this.betData.placed ? this.betData.amount : 0,
-          roundId: this.roundId,
-          message: this.betData.placed ? "Betting closed" : "No bet placed"
-        }
-      });
-      this.startRoundStartWait();
-    }, 1e3);
-  }
-  startRoundStartWait() {
-    this.stopRoundStartWaitTimer();
-    this.isWaiting = true;
-    this.isBetting = false;
-    this.isRunning = false;
-    this.roundStartWaitTimer = setTimeout(() => {
-      this.roundStartWaitTimer = null;
-      this.isWaiting = false;
-      this.startRound();
-    }, this.WAIT_TIME);
-  }
-  startRound() {
-    this.stopMultiplierTimer();
-    this.isWaiting = false;
-    this.isBetting = false;
-    this.isRunning = true;
-    this.multiplier = 1;
-    this.crashPoint = this.generateCrashPoint();
-    const startTime = Date.now();
-    this.emit({
-      type: "round_start",
-      data: {
-        multiplier: this.multiplier,
-        crashPoint: this.crashPoint,
-        roundId: this.roundId,
-        message: "Round started"
-      }
-    });
-    this.multiplierTimer = setInterval(() => {
-      const elapsedTime = Date.now() - startTime;
-      this.multiplier = this.calculateMultiplier(elapsedTime);
-      if (this.multiplier >= this.crashPoint) {
-        this.multiplier = this.crashPoint;
-        this.emit({
-          type: "multiplier_update",
-          data: {
-            multiplier: this.multiplier,
-            roundId: this.roundId
-          }
-        });
-        this.crashRound();
-        return;
-      }
-      this.emit({
-        type: "multiplier_update",
-        data: {
-          multiplier: this.multiplier,
-          roundId: this.roundId
-        }
-      });
-    }, this.UPDATE_INTERVAL);
-  }
-  crashRound() {
-    if (!this.isRunning) return;
-    this.stopMultiplierTimer();
-    this.isRunning = false;
-    this.isBetting = false;
-    this.isWaiting = false;
-    this.emit({
-      type: "crash",
-      data: {
-        multiplier: this.multiplier,
-        crashPoint: this.crashPoint,
-        roundId: this.roundId,
-        message: "Round crashed"
-      }
-    });
-    this.emit({
-      type: "round_end",
-      data: {
-        multiplier: this.multiplier,
-        crashPoint: this.crashPoint,
-        roundId: this.roundId,
-        message: "Round ended"
-      }
-    });
-    this.startCrashWait();
-  }
-  generateCrashPoint() {
-    const random3 = Math.random();
-    if (random3 === 0) return 1;
-    const crashPoint = 0.96 / (1 - random3);
-    return Math.max(1, Number(crashPoint.toFixed(2)));
-  }
-  calculateMultiplier(elapsedTime) {
-    let accumulatedTime = 0;
-    for (const range of this.multiplierRanges) {
-      const rangeEndTime = accumulatedTime + range.duration;
-      if (elapsedTime <= rangeEndTime) {
-        const rangeElapsed = elapsedTime - accumulatedTime;
-        const progress = rangeElapsed / range.duration;
-        const value = range.start + (range.end - range.start) * progress;
-        return Number(value.toFixed(2));
-      }
-      accumulatedTime = rangeEndTime;
-    }
-    return this.multiplierRanges[this.multiplierRanges.length - 1].end;
-  }
-  stopBettingTimer() {
-    if (this.bettingTimer !== null) {
-      clearInterval(this.bettingTimer);
-      this.bettingTimer = null;
-    }
-  }
-  stopMultiplierTimer() {
-    if (this.multiplierTimer !== null) {
-      clearInterval(this.multiplierTimer);
-      this.multiplierTimer = null;
-    }
-  }
-  stopCrashWaitTimer() {
-    if (this.crashWaitTimer !== null) {
-      clearTimeout(this.crashWaitTimer);
-      this.crashWaitTimer = null;
-    }
-  }
-  stopRoundStartWaitTimer() {
-    if (this.roundStartWaitTimer !== null) {
-      clearTimeout(this.roundStartWaitTimer);
-      this.roundStartWaitTimer = null;
-    }
-  }
-  getMultiplier() {
-    return this.multiplier;
-  }
-  getCrashPoint() {
-    return this.crashPoint;
-  }
-  getRoundId() {
-    return this.roundId;
-  }
-  getBetData() {
-    return { ...this.betData };
-  }
-  getState() {
-    return {
-      isWaiting: this.isWaiting,
-      isBetting: this.isBetting,
-      isRunning: this.isRunning
-    };
-  }
-  destroy() {
-    this.stopBettingTimer();
-    this.stopMultiplierTimer();
-    this.stopCrashWaitTimer();
-    this.stopRoundStartWaitTimer();
-    this.listeners.clear();
-    this.isBetting = false;
-    this.isRunning = false;
-    this.isWaiting = false;
-  }
-};
-var socket = new Socket();
-var messageTypes = [
-  "connected",
-  "bet_timer",
-  "bet_placed",
-  "bet_rejected",
-  "bet_closed",
-  "round_start",
-  "multiplier_update",
-  "cashout",
-  "cashout_rejected",
-  "win",
-  "crash",
-  "round_end",
-  "error"
-];
-var getTimestamp = () => (/* @__PURE__ */ new Date()).toLocaleTimeString();
-messageTypes.forEach((type) => {
-  socket.on(type, (message) => {
-    const time = getTimestamp();
-    const { data } = message;
-    switch (type) {
-      case "connected":
-        console.log(`[${time}] \u{1F7E2} CONNECTED | ${data?.message}`);
-        break;
-      case "bet_timer":
-        console.log(`[${time}] \u23F3 BETTING TIMER | Round #${data?.roundId} - Time left: ${data?.timer}s`);
-        break;
-      case "bet_placed":
-        console.log(`[${time}] \u2705 BET PLACED | Round #${data?.roundId} - Amount: $${data?.betAmount}`);
-        break;
-      case "bet_rejected":
-        console.warn(`[${time}] \u274C BET REJECTED | Code: ${data?.errorCode} - ${data?.message}`);
-        break;
-      case "bet_closed":
-        console.log(`[${time}] \u{1F512} BETTING CLOSED | Round #${data?.roundId} - Active Bet: $${data?.betAmount}`);
-        break;
-      case "round_start":
-        console.log(`[${time}] \u{1F680} ROUND START | Round #${data?.roundId} - Target Crash Point: ${data?.crashPoint}x`);
-        break;
-      case "multiplier_update":
-        console.log(`[${time}] \u{1F4C8} MULTIPLIER | Round #${data?.roundId} -> ${data?.multiplier?.toFixed(2)}x`);
-        break;
-      case "cashout":
-        console.log(`[${time}] \u{1F4B0} CASHOUT SUCCESS | Round #${data?.roundId} - Multiplier: ${data?.multiplier}x | Won: $${data?.winAmount} (Profit: $${data?.profit})`);
-        break;
-      case "cashout_rejected":
-        console.warn(`[${time}] \u26A0\uFE0F CASHOUT REJECTED | Code: ${data?.errorCode} - ${data?.message}`);
-        break;
-      case "crash":
-        console.log(`[${time}] \u{1F4A5} CRASHED! | Round #${data?.roundId} crashed at ${data?.crashPoint}x`);
-        break;
-      case "round_end":
-        console.log(`[${time}] \u{1F3C1} ROUND END | Round #${data?.roundId} finished.`);
-        console.log("--------------------------------------------------");
-        break;
-      case "error":
-        console.error(`[${time}] \u{1F6A8} ERROR | Code: ${data?.errorCode} - ${data?.message}`);
-        break;
-      default:
-        console.log(`[${time}] \u{1F4E9} MESSAGE [${type}]`, data);
-    }
-  });
-});
 
 // ts/index.ts
 var Main = class extends Game {
@@ -54608,8 +54378,6 @@ var Main = class extends Game {
     window.addEventListener("resize", () => this.handleResize());
     engine.eventDispatcher.addCustomListener({ type: "button", name: "splash_button" }, (e2) => {
       if (e2.data?.event === "click" && !this.socket) {
-        this.socket = new Socket();
-        this.initSocket();
       }
     });
     engine.eventDispatcher.addCustomListener({ type: "custom", name: "click_button" }, (e2) => {

@@ -18,21 +18,16 @@ export class ObjectResizer {
 
     private config = loadingConfig;
 
-
     public update(objectName: string): void {
-        // 1. Get Pixi object
         const object = engine.gameObjects.OBJECTS[objectName];
-
         if (!object) {
             console.warn(`Object "${objectName}" not found in GameObjects.`);
             return;
         }
-
         const config = (this.config as Record<string, any>)[objectName];
         console.log(config)
         console.log(object)
         if (!config) {
-            console.warn(`Config "${objectName}" not found.`);
             this.applyDefaults(object);
             return;
         }
@@ -40,6 +35,8 @@ export class ObjectResizer {
         const device = engine.gameResizer.data.device;
         const orientation = engine.gameResizer.data.orientation;
 
+        console.log(device)
+        console.log(orientation)
 
         const position = this.getProperty(
             config.position,
@@ -80,9 +77,9 @@ export class ObjectResizer {
         );
 
         object.setVisible(visible);
+        console.warn(object , visible)
         object.setAlpha(alpha);
     }
-
 
     private getProperty(
         propertyConfig: any,
@@ -142,10 +139,7 @@ export class ObjectResizer {
         return orientationConfig;
     }
 
-
-
     private applyDefaults(object: any): void {
-
         object.position.set(
             this.DEFAULTS.position.x,
             this.DEFAULTS.position.y

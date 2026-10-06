@@ -1,3 +1,4 @@
+import { engine } from "./engine";
 export type DeviceType =
     | "desktop"
     | "mobile"
@@ -99,6 +100,7 @@ export class GameResizer {
             userAgent: navigator.userAgent,
             platform: this.getPlatform()
         });
+        engine.eventDispatcher.DISPATCH({ type: "game", name: "resize" ,data: this.data });
     }
 
     private detectDevice(): { device: DeviceType; deviceName: string } {

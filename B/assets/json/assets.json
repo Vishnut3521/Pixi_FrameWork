@@ -1,28 +1,29 @@
 {
-  "loadingScreen": {
-    "images": {
-      "loadingBackground": "assets/images/splashBackground.jpg",
-      "loadingLogo": "assets/images/logo.jpg"
-    },
-    "sounds": {
+    "loading": {
+        "images": {
+            "loadingLogo": "assets/images/loadingLogo.png"
+        },
+        "sounds": {
 
-    },
-    "json": {
-      
-    }
-  },
-  "gameScreen": {
-    "images": {
-      "background": "assets/images/background.jpg",
-      "reelFrame": "assets/images/reelFrame.jpg",
-      "logo1": "assets/images/logo.webp",
-      "splashBackground": "assets/images/splashBackground.jpg"
-    },
-    "sounds": {
+        },
+        "json": {
 
+        }
     },
-    "json": {
-      "backgroundConfig": "assets/json/resposive/background.json"
+    "preLoad": {
+        "images": {
+            "splashScreenBackground": "assets/images/background.png",
+            "splahButton": "assets/images/logo.png",
+            "gameBackground": "assets/images/Gamebackground.png"
+        },
+        "sounds": {
+
+        },
+        "json": {
+            "birdSpriteSheet": "assets/sprites/bird-spritesheet.json"
+        }
+    },
+    "postLoad": {
+
     }
-  }
 }

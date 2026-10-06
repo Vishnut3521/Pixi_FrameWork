@@ -1,0 +1,11 @@
+{
+    "json":{
+        "config":"config",
+        "manifest": "manifest",
+        "sounds":"sounds"
+    },
+    "soundsEnabled":false,
+    "loadingScreen":true,
+    "splashScreen":true,
+    "gameScreen":true
+}
