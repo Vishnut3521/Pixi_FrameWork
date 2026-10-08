@@ -6,6 +6,7 @@ import { GameObject } from "./GameObject";
 import { engine, Engine } from "../utils/engine";
 import { SplashScreen } from "../splashScreen/splashScreen";
 import { GameScreen } from "../gameScreen/gameScreen";
+import {Config} from "../config/config";
 
 export class Game {
     private application!: GameApplication;
@@ -14,8 +15,19 @@ export class Game {
     private splashScreen: SplashScreen | null = null;
     private Engine!: Engine;
     private loadAsets!: AssetLoader;
-
+    public config : any;
+    private isLoadingScreenEnabled: boolean = true;
+    private isSplashScreenEnabled: boolean = true;
+    private isGameScreenEnabled: boolean = true;
     constructor() {
+        this.config = Config.getInstance();
+        if(this.config.loadingScreen !== undefined) {
+            this.isLoadingScreenEnabled = this.config.loadingScreen;
+        }if(this.config.splashScreen !== undefined) {
+            this.isSplashScreenEnabled = this.config.splashScreen;
+        }if(this.config.gameScreen !== undefined) {
+            this.isGameScreenEnabled = this.config.gameScreen;
+        }
         this.start();
     }
 
@@ -30,12 +42,22 @@ export class Game {
 
     private async initEventListeners(): Promise<void> {
         engine.eventDispatcher.addCustomListener({ type: "loader", name: "load_complete" }, (e: any) => {
-            engine.eventDispatcher.DISPATCH({ type: "game", name: "loading_screen", data: {} });
-            this.loadAsets.loadGameScreenAssets();
+            if(this.isLoadingScreenEnabled) {
+                engine.eventDispatcher.DISPATCH({ type: "game", name: "loading_screen", data: {} });
+                this.loadAsets.loadGameScreenAssets();
+            }else{
+                this.loadAsets.loadGameScreenAssets();
+            }
         });
 
         engine.eventDispatcher.addCustomListener({ type: "loader", name: "pre_loadComplete" }, (e: any) => {
-            engine.eventDispatcher.DISPATCH({ type: "game", name: "splash_screen", data: {} });
+            if(this.isSplashScreenEnabled) {
+                engine.eventDispatcher.DISPATCH({ type: "game", name: "splash_screen", data: {} });
+            }else{
+                if(this.isGameScreenEnabled) {
+                    engine.eventDispatcher.DISPATCH({ type: "game", name: "game_screen", data: {} });
+                }
+            }
         });
 
         engine.eventDispatcher.addCustomListener({ type: "button", name: "splash_button" }, (e: any) => {
@@ -86,8 +108,7 @@ export class Game {
         this.Engine = new Engine();
         this.application = new GameApplication();
         await this.application.init();
-        this.loadAsets = new AssetLoader();
-        await this.loadAsets.loadLoadingAssets();
+        this.loadAsets = new AssetLoader(this.config);
         this.events();
         this.resize();
     }

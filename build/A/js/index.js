@@ -53682,7 +53682,7 @@ var resisterObject = class {
 };
 var Image2 = class extends Sprite {
   constructor(objectNotaion) {
-    let texture = Assets.get(objectNotaion.stage);
+    const texture = Assets.get(objectNotaion.stage);
     super(texture);
     this.anchor.set(0.5);
     resisterObject.registerObject(objectNotaion.name, this);
@@ -53712,6 +53712,39 @@ var Image2 = class extends Sprite {
     this.visible = visible;
     return this;
   }
+  setAnchor(x2, y2 = x2) {
+    this.anchor.set(x2, y2);
+    return this;
+  }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
+  }
   resize(objectName) {
     engine.objectResizer.update(objectName);
   }
@@ -53723,6 +53756,7 @@ var GameText = class extends Text {
       style: {}
     });
     this.objectName = objectNotation.name;
+    this.anchor.set(0.5);
     resisterObject.registerObject(objectNotation.name, this);
   }
   setText(text) {
@@ -53792,6 +53826,35 @@ var GameText = class extends Text {
     this.style.fontSize = size;
     return this;
   }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
+  }
   resize(objectName) {
     engine.objectResizer.update(objectName);
   }
@@ -53799,8 +53862,12 @@ var GameText = class extends Text {
 var Graphic = class extends Container {
   constructor(options = {}) {
     super(options);
+    this.graphicWidth = 0;
+    this.graphicHeight = 0;
     this.id = options.id ?? "";
     this.name = options.name ?? "";
+    this.background = new Graphics();
+    this.addChild(this.background);
     resisterObject.registerObject(this.name, this);
   }
   setPosition(x2, y2) {
@@ -53812,8 +53879,19 @@ var Graphic = class extends Container {
     return this;
   }
   setSize(width, height) {
-    this.width = width;
-    this.height = height;
+    this.graphicWidth = width;
+    this.graphicHeight = height;
+    return this;
+  }
+  setBackground(color, alpha = 1, radius = 0) {
+    this.background.clear();
+    this.background.roundRect(-this.graphicWidth / 2, -this.graphicHeight / 2, this.graphicWidth, this.graphicHeight, radius);
+    this.background.fill({ color, alpha });
+    return this;
+  }
+  setBorder(color, width = 2, alpha = 1, radius = 0) {
+    this.background.roundRect(-this.graphicWidth / 2, -this.graphicHeight / 2, this.graphicWidth, this.graphicHeight, radius);
+    this.background.stroke({ color, width, alpha });
     return this;
   }
   setRotationDegrees(degrees) {
@@ -53828,6 +53906,39 @@ var Graphic = class extends Container {
     this.visible = visible;
     return this;
   }
+  setAnchor(x2, y2 = x2) {
+    this.pivot.set(this.graphicWidth * x2, this.graphicHeight * y2);
+    return this;
+  }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
+  }
   add(...children) {
     this.addChild(...children);
     return this;
@@ -53837,9 +53948,7 @@ var Graphic = class extends Container {
     return this;
   }
   dispose() {
-    this.destroy({
-      children: true
-    });
+    this.destroy({ children: true });
   }
   resize(objectName) {
     engine.objectResizer.update(objectName);
@@ -53848,39 +53957,80 @@ var Graphic = class extends Container {
 var ButtonImage = class extends Image2 {
   constructor(objectNotation) {
     super(objectNotation);
-    this.name = objectNotation.name;
-    this.eventMode = "static";
-    this.cursor = "pointer";
-    this.clickFunction = () => {
-      this.ClickEvent();
-    };
-    this.on("click", this.clickFunction);
-  }
-  ClickEvent() {
-    return;
-  }
-  RemoveEvent(type) {
-    if (type === "click") {
-      this.off("click", this.clickFunction);
-    }
+    this.setButtonMode(true);
   }
 };
 var Animation2 = class extends AnimatedSprite {
   constructor(objectName) {
     const spritesheet = Assets.get(objectName);
     if (!spritesheet) {
-      throw new Error(
-        `Spritesheet "${objectName}" was not loaded.`
-      );
+      throw new Error(`Spritesheet "${objectName}" was not loaded.`);
     }
     const frames = spritesheet.animations?.["fly"];
     if (!frames || frames.length === 0) {
-      throw new Error(
-        `Animation "fly" was not found in "${objectName}".`
-      );
+      throw new Error(`Animation "fly" was not found in "${objectName}".`);
     }
     super(frames);
+    this.anchor.set(0.5);
     resisterObject.registerObject(objectName, this);
+  }
+  setPosition(x2, y2) {
+    this.position.set(x2, y2);
+    return this;
+  }
+  setScale(x2, y2 = x2) {
+    this.scale.set(x2, y2);
+    return this;
+  }
+  setSize(width, height) {
+    this.width = width;
+    this.height = height;
+    return this;
+  }
+  setRotation(rotation) {
+    this.rotation = rotation;
+    return this;
+  }
+  setAlpha(alpha) {
+    this.alpha = alpha;
+    return this;
+  }
+  setVisible(visible) {
+    this.visible = visible;
+    return this;
+  }
+  setAnchor(x2, y2 = x2) {
+    this.anchor.set(x2, y2);
+    return this;
+  }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
   }
   resize(objectName) {
     engine.objectResizer.update(objectName);
@@ -53990,6 +54140,10 @@ var SplashButton = class extends ButtonImage {
   constructor(object) {
     super(object);
     this.name = object.name;
+    this.setButtonMode(true);
+    this.onClickFunction(() => {
+      this.ClickEvent();
+    });
   }
   ClickEvent() {
     engine.eventDispatcher.DISPATCH({ type: "button", name: "splash_button", data: { event: "click" } });

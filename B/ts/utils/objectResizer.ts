@@ -21,12 +21,9 @@ export class ObjectResizer {
     public update(objectName: string): void {
         const object = engine.gameObjects.OBJECTS[objectName];
         if (!object) {
-            console.warn(`Object "${objectName}" not found in GameObjects.`);
             return;
         }
         const config = (this.config as Record<string, any>)[objectName];
-        console.log(config)
-        console.log(object)
         if (!config) {
             this.applyDefaults(object);
             return;

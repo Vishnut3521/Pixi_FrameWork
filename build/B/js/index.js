@@ -46725,541 +46725,6 @@ extensions.handle(ExtensionType.Asset, (extension) => {
   Object.keys(assetKeyMap).filter((key) => !!ref[key]).forEach((key) => extensions.remove(ref[key]));
 });
 
-// ../node_modules/pixi.js/lib/scene/sprite-animated/AnimatedSprite.mjs
-init_Texture();
-init_const2();
-init_Ticker();
-init_Sprite();
-var AnimatedSprite = class _AnimatedSprite extends Sprite {
-  constructor(...args) {
-    let options = args[0];
-    if (Array.isArray(args[0])) {
-      options = {
-        textures: args[0],
-        autoUpdate: args[1]
-      };
-    }
-    const {
-      animationSpeed = 1,
-      autoPlay = false,
-      autoUpdate = true,
-      loop = true,
-      onComplete = null,
-      onFrameChange = null,
-      onLoop = null,
-      textures,
-      updateAnchor = false,
-      ...rest
-    } = options;
-    const [firstFrame] = textures;
-    super({
-      ...rest,
-      texture: firstFrame instanceof Texture ? firstFrame : firstFrame.texture
-    });
-    this._textures = null;
-    this._durations = null;
-    this._autoUpdate = autoUpdate;
-    this._isConnectedToTicker = false;
-    this.animationSpeed = animationSpeed;
-    this.loop = loop;
-    this.updateAnchor = updateAnchor;
-    this.onComplete = onComplete;
-    this.onFrameChange = onFrameChange;
-    this.onLoop = onLoop;
-    this._currentTime = 0;
-    this._playing = false;
-    this._previousFrame = null;
-    this.textures = textures;
-    if (autoPlay) {
-      this.play();
-    }
-  }
-  /**
-   * Stops the animation playback and freezes the current frame.
-   * Does not reset the current frame or animation progress.
-   * @example
-   * ```ts
-   * // Create an animated sprite
-   * const sprite = new AnimatedSprite({
-   *     textures: [
-   *         Texture.from('walk1.png'),
-   *         Texture.from('walk2.png'),
-   *         Texture.from('walk3.png')
-   *     ],
-   *     autoPlay: true
-   * });
-   *
-   * // Stop at current frame
-   * sprite.stop();
-   *
-   * // Stop at specific frame
-   * sprite.gotoAndStop(1); // Stops at second frame
-   *
-   * // Stop and reset
-   * sprite.stop();
-   * sprite.currentFrame = 0;
-   *
-   * // Stop with completion check
-   * if (sprite.playing) {
-   *     sprite.stop();
-   *     sprite.onComplete?.();
-   * }
-   * ```
-   * @see {@link AnimatedSprite#play} For starting playback
-   * @see {@link AnimatedSprite#gotoAndStop} For stopping at a specific frame
-   * @see {@link AnimatedSprite#playing} For checking play state
-   */
-  stop() {
-    if (!this._playing) {
-      return;
-    }
-    this._playing = false;
-    if (this._autoUpdate && this._isConnectedToTicker) {
-      Ticker.shared.remove(this.update, this);
-      this._isConnectedToTicker = false;
-    }
-  }
-  /**
-   * Starts or resumes the animation playback.
-   * If the animation was previously stopped, it will continue from where it left off.
-   * @example
-   * ```ts
-   * // Basic playback
-   * const sprite = new AnimatedSprite({
-   *     textures: [
-   *         Texture.from('walk1.png'),
-   *         Texture.from('walk2.png'),
-   *     ],
-   *     autoPlay: false
-   * });
-   * sprite.play();
-   *
-   * // Play after stopping
-   * sprite.stop();
-   * sprite.currentFrame = 0; // Reset to start
-   * sprite.play(); // Play from beginning
-   *
-   * // Play with auto-update disabled
-   * sprite.autoUpdate = false;
-   * sprite.play();
-   * app.ticker.add(() => {
-   *     sprite.update(app.ticker); // Manual updates
-   * });
-   * ```
-   * @see {@link AnimatedSprite#stop} For stopping playback
-   * @see {@link AnimatedSprite#gotoAndPlay} For playing from a specific frame
-   * @see {@link AnimatedSprite#playing} For checking play state
-   */
-  play() {
-    if (this._playing) {
-      return;
-    }
-    this._playing = true;
-    if (this._autoUpdate && !this._isConnectedToTicker) {
-      Ticker.shared.add(this.update, this, UPDATE_PRIORITY.HIGH);
-      this._isConnectedToTicker = true;
-    }
-  }
-  /**
-   * Stops the AnimatedSprite and sets it to a specific frame.
-   * @example
-   * ```ts
-   * // Create an animated sprite
-   * const sprite = new AnimatedSprite({
-   *     textures: [
-   *         Texture.from('walk1.png'),
-   *         Texture.from('walk2.png'),
-   *         Texture.from('walk3.png'),
-   *     ]
-   * });
-   *
-   * // Go to specific frames
-   * sprite.gotoAndStop(0);  // First frame
-   * sprite.gotoAndStop(2);  // Third frame
-   *
-   * // Jump to last frame
-   * sprite.gotoAndStop(sprite.totalFrames - 1);
-   * ```
-   * @param frameNumber - Frame index to stop at (0-based)
-   * @throws {Error} If frameNumber is out of bounds
-   * @see {@link AnimatedSprite#gotoAndPlay} For going to a frame and playing
-   * @see {@link AnimatedSprite#currentFrame} For getting/setting current frame
-   * @see {@link AnimatedSprite#totalFrames} For total number of frames
-   */
-  gotoAndStop(frameNumber) {
-    this.stop();
-    this.currentFrame = frameNumber;
-  }
-  /**
-   * Goes to a specific frame and begins playing the AnimatedSprite from that point.
-   * Combines frame navigation and playback start in one operation.
-   * @example
-   * ```ts
-   * // Start from specific frame
-   * sprite.gotoAndPlay(1); // Starts playing from second frame
-   * ```
-   * @param frameNumber - Frame index to start playing from (0-based)
-   * @throws {Error} If frameNumber is out of bounds
-   * @see {@link AnimatedSprite#gotoAndStop} For going to a frame without playing
-   * @see {@link AnimatedSprite#play} For playing from current frame
-   * @see {@link AnimatedSprite#currentFrame} For getting/setting current frame
-   */
-  gotoAndPlay(frameNumber) {
-    this.currentFrame = frameNumber;
-    this.play();
-  }
-  /**
-   * Updates the object transform for rendering. This method handles animation timing, frame updates,
-   * and manages looping behavior.
-   * @example
-   * ```ts
-   * // Create an animated sprite with manual updates
-   * const sprite = new AnimatedSprite({
-   *     textures: [
-   *         Texture.from('frame1.png'),
-   *         Texture.from('frame2.png'),
-   *         Texture.from('frame3.png')
-   *     ],
-   *     autoUpdate: false // Disable automatic updates
-   * });
-   *
-   * // Manual update with app ticker
-   * app.ticker.add((ticker) => {
-   *     sprite.update(ticker);
-   * });
-   * ```
-   * @param ticker - The ticker to use for updating the animation timing
-   * @see {@link AnimatedSprite#autoUpdate} For controlling automatic updates
-   * @see {@link AnimatedSprite#animationSpeed} For controlling animation speed
-   * @see {@link Ticker} For timing system details
-   */
-  update(ticker) {
-    if (!this._playing) {
-      return;
-    }
-    const deltaTime = ticker.deltaTime;
-    const elapsed = this.animationSpeed * deltaTime;
-    const previousFrame = this.currentFrame;
-    if (this._durations !== null) {
-      let lag = this._currentTime % 1 * this._durations[this.currentFrame];
-      lag += elapsed / 60 * 1e3;
-      while (lag < 0) {
-        this._currentTime--;
-        lag += this._durations[this.currentFrame];
-      }
-      const sign = Math.sign(this.animationSpeed * deltaTime);
-      this._currentTime = Math.floor(this._currentTime);
-      while (lag >= this._durations[this.currentFrame]) {
-        lag -= this._durations[this.currentFrame] * sign;
-        this._currentTime += sign;
-      }
-      this._currentTime += lag / this._durations[this.currentFrame];
-    } else {
-      this._currentTime += elapsed;
-    }
-    if (this._currentTime < 0 && !this.loop) {
-      this.gotoAndStop(0);
-      if (this.onComplete) {
-        this.onComplete();
-      }
-    } else if (this._currentTime >= this._textures.length && !this.loop) {
-      this.gotoAndStop(this._textures.length - 1);
-      if (this.onComplete) {
-        this.onComplete();
-      }
-    } else if (previousFrame !== this.currentFrame) {
-      if (this.loop && this.onLoop) {
-        if (this.animationSpeed > 0 && this.currentFrame < previousFrame || this.animationSpeed < 0 && this.currentFrame > previousFrame) {
-          this.onLoop();
-        }
-      }
-      this._updateTexture();
-    }
-  }
-  /** Updates the displayed texture to match the current frame index. */
-  _updateTexture() {
-    const currentFrame = this.currentFrame;
-    if (this._previousFrame === currentFrame) {
-      return;
-    }
-    this._previousFrame = currentFrame;
-    this.texture = this._textures[currentFrame];
-    if (this.updateAnchor && this.texture.defaultAnchor) {
-      this.anchor.copyFrom(this.texture.defaultAnchor);
-    }
-    if (this.onFrameChange) {
-      this.onFrameChange(this.currentFrame);
-    }
-  }
-  /**
-   * Stops the AnimatedSprite and destroys it.
-   * This method stops the animation playback, removes it from the ticker,
-   * and cleans up any resources associated with the sprite.
-   * @param options - Options for destroying the sprite, such as whether to remove from parent
-   * @example
-   * ```ts
-   * // Destroy the sprite when done
-   * sprite.destroy();
-   * // Or with options
-   * sprite.destroy({ children: true, texture: true, textureSource: true });
-   * ```
-   */
-  destroy(options = false) {
-    const destroyTexture = typeof options === "boolean" ? options : options?.texture;
-    if (destroyTexture) {
-      const destroyTextureSource = typeof options === "boolean" ? options : options?.textureSource;
-      this._textures.forEach((texture) => {
-        if (this.texture !== texture) {
-          texture.destroy(destroyTextureSource);
-        }
-      });
-    }
-    this._textures = [];
-    this._durations = null;
-    this.stop();
-    super.destroy(options);
-    this.onComplete = null;
-    this.onFrameChange = null;
-    this.onLoop = null;
-  }
-  /**
-   * A short hand way of creating an AnimatedSprite from an array of frame ids.
-   * Uses texture frames from the cache to create an animation sequence.
-   * @example
-   * ```ts
-   * // Create from frame IDs
-   * const frameIds = [
-   *     'walk_001.png',
-   *     'walk_002.png',
-   *     'walk_003.png'
-   * ];
-   *
-   * const walkingAnimation = AnimatedSprite.fromFrames(frameIds);
-   * walkingAnimation.play();
-   * ```
-   * @param frames - The array of frame ids to use for the animation
-   * @returns A new animated sprite using the frames
-   * @see {@link Texture.from} For texture creation from frames
-   * @see {@link Spritesheet} For loading spritesheets
-   */
-  static fromFrames(frames) {
-    const textures = [];
-    for (let i2 = 0; i2 < frames.length; ++i2) {
-      textures.push(Texture.from(frames[i2]));
-    }
-    return new _AnimatedSprite(textures);
-  }
-  /**
-   * A short hand way of creating an AnimatedSprite from an array of image urls.
-   * Each image will be used as a frame in the animation.
-   * @example
-   * ```ts
-   * // Create from image URLs
-   * const images = [
-   *     'assets/walk1.png',
-   *     'assets/walk2.png',
-   *     'assets/walk3.png'
-   * ];
-   *
-   * const walkingSprite = AnimatedSprite.fromImages(images);
-   * walkingSprite.play();
-   * ```
-   * @param images - The array of image urls to use as frames
-   * @returns A new animated sprite using the images as frames
-   * @see {@link Assets} For asset loading and management
-   * @see {@link Texture.from} For texture creation from images
-   */
-  static fromImages(images) {
-    const textures = [];
-    for (let i2 = 0; i2 < images.length; ++i2) {
-      textures.push(Texture.from(images[i2]));
-    }
-    return new _AnimatedSprite(textures);
-  }
-  /**
-   * The total number of frames in the AnimatedSprite. This is the same as number of textures
-   * assigned to the AnimatedSprite.
-   * @example
-   * ```ts
-   * // Create an animated sprite
-   * const sprite = new AnimatedSprite({
-   *     textures: [
-   *         Texture.from('frame1.png'),
-   *         Texture.from('frame2.png'),
-   *         Texture.from('frame3.png')
-   *     ]
-   * });
-   *
-   * // Get total frames
-   * console.log(sprite.totalFrames); // Outputs: 3
-   *
-   * // Use with frame navigation
-   * sprite.gotoAndStop(sprite.totalFrames - 1); // Go to last frame
-   * ```
-   * @readonly
-   * @see {@link AnimatedSprite#currentFrame} For the current frame index
-   * @see {@link AnimatedSprite#textures} For the array of textures
-   * @returns {number} The total number of frames
-   */
-  get totalFrames() {
-    return this._textures.length;
-  }
-  /**
-   * The array of textures or frame objects used for the animation sequence.
-   * Can be set to either an array of Textures or an array of FrameObjects with custom timing.
-   * @example
-   * ```ts
-   * // Update textures at runtime
-   * sprite.textures = [
-   *     Texture.from('run1.png'),
-   *     Texture.from('run2.png')
-   * ];
-   *
-   * // Use custom frame timing
-   * sprite.textures = [
-   *     { texture: Texture.from('explosion1.png'), time: 100 },
-   *     { texture: Texture.from('explosion2.png'), time: 200 },
-   *     { texture: Texture.from('explosion3.png'), time: 300 }
-   * ];
-   *
-   * // Use with spritesheet
-   * const sheet = await Assets.load('animations.json');
-   * sprite.textures = sheet.animations['walk'];
-   * ```
-   * @type {AnimatedSpriteFrames}
-   * @see {@link FrameObject} For frame timing options
-   * @see {@link Spritesheet} For loading from spritesheets
-   */
-  get textures() {
-    return this._textures;
-  }
-  set textures(value) {
-    if (value[0] instanceof Texture) {
-      this._textures = value;
-      this._durations = null;
-    } else {
-      this._textures = [];
-      this._durations = [];
-      for (let i2 = 0; i2 < value.length; i2++) {
-        this._textures.push(value[i2].texture);
-        this._durations.push(value[i2].time);
-      }
-    }
-    this._previousFrame = null;
-    this.gotoAndStop(0);
-    this._updateTexture();
-  }
-  /**
-   * Gets or sets the current frame index of the animation.
-   * When setting, the value will be clamped between 0 and totalFrames - 1.
-   * @example
-   * ```ts
-   * // Create an animated sprite
-   * const sprite = new AnimatedSprite({
-   *     textures: [
-   *         Texture.from('walk1.png'),
-   *         Texture.from('walk2.png'),
-   *         Texture.from('walk3.png')
-   *     ]
-   * });
-   *
-   * // Get current frame
-   * console.log(sprite.currentFrame); // 0
-   *
-   * // Set specific frame
-   * sprite.currentFrame = 1; // Show second frame
-   *
-   * // Use with frame callbacks
-   * sprite.onFrameChange = (frame) => {
-   *     console.log(`Now showing frame: ${frame}`);
-   * };
-   * sprite.currentFrame = 2;
-   * ```
-   * @throws {Error} If attempting to set a frame index out of bounds
-   * @see {@link AnimatedSprite#totalFrames} For the total number of frames
-   * @see {@link AnimatedSprite#gotoAndPlay} For playing from a specific frame
-   * @see {@link AnimatedSprite#gotoAndStop} For stopping at a specific frame
-   */
-  get currentFrame() {
-    let currentFrame = Math.floor(this._currentTime) % this._textures.length;
-    if (currentFrame < 0) {
-      currentFrame += this._textures.length;
-    }
-    return currentFrame;
-  }
-  set currentFrame(value) {
-    if (value < 0 || value > this.totalFrames - 1) {
-      throw new Error(`[AnimatedSprite]: Invalid frame index value ${value}, expected to be between 0 and totalFrames ${this.totalFrames}.`);
-    }
-    const previousFrame = this.currentFrame;
-    this._currentTime = value;
-    if (previousFrame !== this.currentFrame) {
-      this._updateTexture();
-    }
-  }
-  /**
-   * Indicates if the AnimatedSprite is currently playing.
-   * This is a read-only property that reflects the current playback state.
-   * @example
-   * ```ts
-   * // Check if animation is playing
-   * console.log('Playing:', sprite.playing); // true
-   *
-   * // Use with play control
-   * if (!sprite.playing) {
-   *     sprite.play();
-   * }
-   * ```
-   * @readonly
-   * @returns {boolean} True if the animation is currently playing
-   * @see {@link AnimatedSprite#play} For starting playback
-   * @see {@link AnimatedSprite#stop} For stopping playback
-   * @see {@link AnimatedSprite#loop} For controlling looping behavior
-   */
-  get playing() {
-    return this._playing;
-  }
-  /**
-   * Controls whether the animation automatically updates using the shared ticker.
-   * When enabled, the animation will update on each frame. When disabled, you must
-   * manually call update() to advance the animation.
-   * @example
-   * ```ts
-   * // Create sprite with auto-update disabled
-   * const sprite = new AnimatedSprite({
-   *     textures: [],
-   *     autoUpdate: false
-   * });
-   *
-   * // Manual update with app ticker
-   * app.ticker.add((ticker) => {
-   *     sprite.update(ticker);
-   * });
-   *
-   * // Enable auto-update later
-   * sprite.autoUpdate = true;
-   * ```
-   * @default true
-   * @see {@link AnimatedSprite#update} For manual animation updates
-   * @see {@link Ticker} For the timing system
-   */
-  get autoUpdate() {
-    return this._autoUpdate;
-  }
-  set autoUpdate(value) {
-    if (value !== this._autoUpdate) {
-      this._autoUpdate = value;
-      if (!this._autoUpdate && this._isConnectedToTicker) {
-        Ticker.shared.remove(this.update, this);
-        this._isConnectedToTicker = false;
-      } else if (this._autoUpdate && !this._isConnectedToTicker && this._playing) {
-        Ticker.shared.add(this.update, this);
-        this._isConnectedToTicker = true;
-      }
-    }
-  }
-};
-
 // ../node_modules/pixi.js/lib/scene/text/Text.mjs
 init_TextureSource();
 init_TextureStyle();
@@ -48567,29 +48032,6 @@ init_Sprite();
 init_eventemitter3();
 extensions.add(browserExt, webworkerExt);
 
-// assets/json/assets.json
-var assets_default = {
-  loading: {
-    images: {
-      loadingLogo: "assets/images/loadingLogo.png"
-    },
-    sounds: {},
-    json: {}
-  },
-  preLoad: {
-    images: {
-      splashScreenBackground: "assets/images/background.png",
-      splahButton: "assets/images/logo.png",
-      gameBackground: "assets/images/Gamebackground.png"
-    },
-    sounds: {},
-    json: {
-      birdSpriteSheet: "assets/sprites/bird-spritesheet.json"
-    }
-  },
-  postLoad: {}
-};
-
 // ts/utils/gameObjects.ts
 var GameObjects = class {
   constructor() {
@@ -48853,12 +48295,9 @@ var ObjectResizer = class {
   update(objectName) {
     const object = engine.gameObjects.OBJECTS[objectName];
     if (!object) {
-      console.warn(`Object "${objectName}" not found in GameObjects.`);
       return;
     }
     const config3 = this.config[objectName];
-    console.log(config3);
-    console.log(object);
     if (!config3) {
       this.applyDefaults(object);
       return;
@@ -50147,7 +49586,7 @@ var GSCache = function GSCache2(target, harness) {
   this.set = harness ? harness.getSetter : _getSetter;
 };
 var Animation = /* @__PURE__ */ (function() {
-  function Animation3(vars) {
+  function Animation2(vars) {
     this.vars = vars;
     this._delay = +vars.delay || 0;
     if (this._repeat = vars.repeat === Infinity ? -2 : vars.repeat || 0) {
@@ -50163,7 +49602,7 @@ var Animation = /* @__PURE__ */ (function() {
     }
     _tickerActive || _ticker.wake();
   }
-  var _proto = Animation3.prototype;
+  var _proto = Animation2.prototype;
   _proto.delay = function delay(value) {
     if (value || value === 0) {
       this.parent && this.parent.smoothChildTiming && this.startTime(this._start + value - this._delay);
@@ -50386,7 +49825,7 @@ var Animation = /* @__PURE__ */ (function() {
   _proto.kill = function kill() {
     _interrupt(this);
   };
-  return Animation3;
+  return Animation2;
 })();
 _setDefaults(Animation.prototype, {
   _time: 0,
@@ -53268,9 +52707,78 @@ window.engine = engine;
 
 // ts/loader/AssetsLoader.ts
 var AssetLoader = class {
-  constructor() {
+  constructor(config3, jsonBasePath = "assets/json") {
     this.totalAssets = 0;
     this.loadedAssets = 0;
+    this.assetConfig = {};
+    this.jsonFiles = {};
+    this.assetUrls = /* @__PURE__ */ new Map();
+    this.errors = [];
+    this.config = config3;
+    this.jsonBasePath = jsonBasePath;
+    this.initialize().catch((error) => {
+      console.error("Error initializing AssetLoader:", error);
+    });
+  }
+  async initialize() {
+    if (this.config) {
+      await this.loadJson("config");
+    }
+    if (this.config.json?.manifest) {
+      const manifest = await this.loadJson(this.config.json.manifest);
+      if (manifest) {
+        this.assetConfig = manifest;
+      }
+    }
+    if (this.config.soundsEnabled && this.config.json?.sounds) {
+      await this.loadJson(this.config.json.sounds);
+    }
+    this.registerAssetUrls();
+    await this.loadLoadingAssets();
+  }
+  async loadJson(name) {
+    const fileName = name.endsWith(".json") ? name : `${name}.json`;
+    const url = `${this.jsonBasePath}/${fileName}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      this.jsonFiles[name] = data;
+      return data;
+    } catch (error) {
+      this.handleError({
+        alias: name,
+        url,
+        type: "control-json",
+        error
+      });
+      return null;
+    }
+  }
+  registerAssetUrls() {
+    for (const groupName of ["loading", "preLoad", "postLoad"]) {
+      const group = this.assetConfig[groupName];
+      if (!group) {
+        continue;
+      }
+      for (const [alias, url] of Object.entries(group.images ?? {})) {
+        this.assetUrls.set(alias, url);
+      }
+      for (const [alias, url] of Object.entries(group.json ?? {})) {
+        this.assetUrls.set(alias, url);
+      }
+      if (this.config.soundsEnabled) {
+        for (const [alias, url] of Object.entries(group.sounds ?? {})) {
+          this.assetUrls.set(alias, url);
+        }
+      }
+      for (const [alias, spine] of Object.entries(group.spine ?? {})) {
+        this.assetUrls.set(`${alias}:json`, spine.json);
+        this.assetUrls.set(`${alias}:atlas`, spine.atlas);
+      }
+    }
   }
   async loadLoadingAssets() {
     this.totalAssets = this.getAssetCount("loading") + this.getAssetCount("preLoad");
@@ -53295,28 +52803,20 @@ var AssetLoader = class {
     await this.loadAssets("preLoad");
     await new Promise((resolve) => setTimeout(resolve, 1e3));
   }
+  async loadPostLoadAssets() {
+    await this.loadAssets("postLoad");
+  }
   async loadAssets(groupName) {
-    const group = assets_default[groupName];
-    const assets = [
-      ...Object.entries(group.images ?? {}).map(([alias, src]) => ({ alias, src })),
-      ...Object.entries(group.sounds ?? {}).map(([alias, src]) => ({ alias, src })),
-      ...Object.entries(group.json ?? {}).map(([alias, src]) => ({ alias, src }))
-    ];
+    console.log(this.assetConfig);
+    const group = this.assetConfig[groupName];
+    if (!group) {
+      return;
+    }
+    console.log(`Loading assets for group: ${groupName}`, group);
+    const assets = this.createAssetList(group);
     if (assets.length === 0) {
       return;
     }
-    const events = {
-      preLoad: {
-        start: "pre_loadStart",
-        progress: "pre_loadProgress",
-        finish: "pre_loadComplete"
-      },
-      postLoad: {
-        start: "post_loadStart",
-        progress: "post_loadProgress",
-        finish: "post_loadComplete"
-      }
-    };
     if (groupName === "preLoad") {
       engine.eventDispatcher.DISPATCH({
         type: "loader",
@@ -53326,20 +52826,23 @@ var AssetLoader = class {
         }
       });
     }
-    await Assets.load(assets, (progress) => {
-      if (groupName === "loading" || groupName === "preLoad") {
-        const groupLoaded = Math.floor(progress * assets.length);
-        const previousGroupLoaded = Math.floor(
-          this.loadedAssets % assets.length
-        );
-        if (groupLoaded > previousGroupLoaded) {
-          this.loadedAssets += groupLoaded - previousGroupLoaded;
+    if (groupName === "postLoad") {
+      engine.eventDispatcher.DISPATCH({
+        type: "loader",
+        name: "post_loadStart",
+        data: {
+          loadProgressPercentage: 0
         }
+      });
+    }
+    for (let i2 = 0; i2 < assets.length; i2++) {
+      await this.loadSingleAsset(assets[i2]);
+      this.loadedAssets++;
+      const groupProgress = Math.round((i2 + 1) / assets.length * 100);
+      if (groupName === "loading" || groupName === "preLoad") {
         const percentage = Math.min(
           100,
-          Math.round(
-            this.loadedAssets / this.totalAssets * 100
-          )
+          Math.round(this.loadedAssets / this.totalAssets * 100)
         );
         engine.eventDispatcher.DISPATCH({
           type: "loader",
@@ -53348,26 +52851,26 @@ var AssetLoader = class {
             loadProgressPercentage: percentage
           }
         });
-        if (groupName === "preLoad") {
-          engine.eventDispatcher.DISPATCH({
-            type: "loader",
-            name: "pre_loadProgress",
-            data: {
-              loadProgressPercentage: Math.round(progress * 100)
-            }
-          });
-        }
-        return;
       }
-      const event = events[groupName];
-      engine.eventDispatcher.DISPATCH({
-        type: "loader",
-        name: event.progress,
-        data: {
-          loadProgressPercentage: Math.round(progress * 100)
-        }
-      });
-    });
+      if (groupName === "preLoad") {
+        engine.eventDispatcher.DISPATCH({
+          type: "loader",
+          name: "pre_loadProgress",
+          data: {
+            loadProgressPercentage: groupProgress
+          }
+        });
+      }
+      if (groupName === "postLoad") {
+        engine.eventDispatcher.DISPATCH({
+          type: "loader",
+          name: "post_loadProgress",
+          data: {
+            loadProgressPercentage: groupProgress
+          }
+        });
+      }
+    }
     if (groupName === "loading") {
       this.loadedAssets = this.getAssetCount("loading");
       engine.eventDispatcher.DISPATCH({
@@ -53411,9 +52914,127 @@ var AssetLoader = class {
       });
     }
   }
+  async loadSingleAsset(asset) {
+    try {
+      await Assets.load({
+        alias: asset.alias,
+        src: asset.src
+      });
+    } catch (error) {
+      this.handleError({
+        alias: asset.alias,
+        url: asset.src,
+        type: asset.type,
+        error
+      });
+    }
+  }
+  createAssetList(group) {
+    const assets = [];
+    for (const [alias, src] of Object.entries(group.images ?? {})) {
+      assets.push({
+        alias,
+        src,
+        type: "image"
+      });
+    }
+    for (const [alias, src] of Object.entries(group.json ?? {})) {
+      assets.push({
+        alias,
+        src,
+        type: "json"
+      });
+    }
+    if (this.config.soundsEnabled) {
+      for (const [alias, src] of Object.entries(group.sounds ?? {})) {
+        assets.push({
+          alias,
+          src,
+          type: "sound"
+        });
+      }
+    }
+    for (const [alias, spine] of Object.entries(group.spine ?? {})) {
+      if (spine.json) {
+        assets.push({
+          alias: `${alias}:json`,
+          src: spine.json,
+          type: "spine-json"
+        });
+      }
+      if (spine.atlas) {
+        assets.push({
+          alias: `${alias}:atlas`,
+          src: spine.atlas,
+          type: "spine-atlas"
+        });
+      }
+    }
+    return assets;
+  }
   getAssetCount(groupName) {
-    const group = assets_default[groupName];
-    return Object.keys(group.images ?? {}).length + Object.keys(group.sounds ?? {}).length + Object.keys(group.json ?? {}).length;
+    const group = this.assetConfig[groupName];
+    if (!group) {
+      return 0;
+    }
+    let count2 = Object.keys(group.images ?? {}).length + Object.keys(group.json ?? {}).length;
+    if (this.config.soundsEnabled) {
+      count2 += Object.keys(group.sounds ?? {}).length;
+    }
+    for (const spine of Object.values(group.spine ?? {})) {
+      if (spine.json) {
+        count2++;
+      }
+      if (spine.atlas) {
+        count2++;
+      }
+    }
+    return count2;
+  }
+  handleError(errorData) {
+    this.errors.push(errorData);
+    console.error(
+      `[AssetLoader] Failed to load: ${errorData.alias}`,
+      errorData.url,
+      errorData.error
+    );
+    engine.eventDispatcher.DISPATCH({
+      type: "loader",
+      name: "asset_load_error",
+      data: {
+        alias: errorData.alias,
+        url: errorData.url,
+        assetType: errorData.type,
+        error: errorData.error
+      }
+    });
+  }
+  get(name) {
+    return Assets.get(name);
+  }
+  getUrl(name) {
+    return this.assetUrls.get(name);
+  }
+  getJson(name) {
+    return this.jsonFiles[name];
+  }
+  getConfig() {
+    return this.config;
+  }
+  getManifest() {
+    return this.assetConfig;
+  }
+  has(name) {
+    return this.assetUrls.has(name);
+  }
+  isLoaded(name) {
+    return Assets.get(name) !== void 0;
+  }
+  getErrors() {
+    return [...this.errors];
+  }
+  hasErrors() {
+    return this.errors.length > 0;
   }
 };
 
@@ -53526,7 +53147,7 @@ var resisterObject = class {
 };
 var Image2 = class extends Sprite {
   constructor(objectNotaion) {
-    let texture = Assets.get(objectNotaion.stage);
+    const texture = Assets.get(objectNotaion.stage);
     super(texture);
     this.anchor.set(0.5);
     resisterObject.registerObject(objectNotaion.name, this);
@@ -53556,6 +53177,39 @@ var Image2 = class extends Sprite {
     this.visible = visible;
     return this;
   }
+  setAnchor(x2, y2 = x2) {
+    this.anchor.set(x2, y2);
+    return this;
+  }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
+  }
   resize(objectName) {
     engine.objectResizer.update(objectName);
   }
@@ -53567,6 +53221,7 @@ var GameText = class extends Text {
       style: {}
     });
     this.objectName = objectNotation.name;
+    this.anchor.set(0.5);
     resisterObject.registerObject(objectNotation.name, this);
   }
   setText(text) {
@@ -53636,6 +53291,35 @@ var GameText = class extends Text {
     this.style.fontSize = size;
     return this;
   }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
+  }
   resize(objectName) {
     engine.objectResizer.update(objectName);
   }
@@ -53643,8 +53327,12 @@ var GameText = class extends Text {
 var Graphic = class extends Container {
   constructor(options = {}) {
     super(options);
+    this.graphicWidth = 0;
+    this.graphicHeight = 0;
     this.id = options.id ?? "";
     this.name = options.name ?? "";
+    this.background = new Graphics();
+    this.addChild(this.background);
     resisterObject.registerObject(this.name, this);
   }
   setPosition(x2, y2) {
@@ -53656,8 +53344,19 @@ var Graphic = class extends Container {
     return this;
   }
   setSize(width, height) {
-    this.width = width;
-    this.height = height;
+    this.graphicWidth = width;
+    this.graphicHeight = height;
+    return this;
+  }
+  setBackground(color, alpha = 1, radius = 0) {
+    this.background.clear();
+    this.background.roundRect(-this.graphicWidth / 2, -this.graphicHeight / 2, this.graphicWidth, this.graphicHeight, radius);
+    this.background.fill({ color, alpha });
+    return this;
+  }
+  setBorder(color, width = 2, alpha = 1, radius = 0) {
+    this.background.roundRect(-this.graphicWidth / 2, -this.graphicHeight / 2, this.graphicWidth, this.graphicHeight, radius);
+    this.background.stroke({ color, width, alpha });
     return this;
   }
   setRotationDegrees(degrees) {
@@ -53672,6 +53371,39 @@ var Graphic = class extends Container {
     this.visible = visible;
     return this;
   }
+  setAnchor(x2, y2 = x2) {
+    this.pivot.set(this.graphicWidth * x2, this.graphicHeight * y2);
+    return this;
+  }
+  setButtonMode(value) {
+    this.eventMode = value ? "static" : "none";
+    this.cursor = value ? "pointer" : "default";
+    return this;
+  }
+  onClickFunction(callback) {
+    if (this.clickFunction) {
+      this.off("pointertap", this.clickFunction);
+    }
+    this.clickFunction = callback;
+    this.on("pointertap", this.clickFunction);
+    return this;
+  }
+  onHover(callback) {
+    if (this.hoverFunction) {
+      this.off("pointerover", this.hoverFunction);
+    }
+    this.hoverFunction = callback;
+    this.on("pointerover", this.hoverFunction);
+    return this;
+  }
+  onHoverOut(callback) {
+    if (this.hoverOutFunction) {
+      this.off("pointerout", this.hoverOutFunction);
+    }
+    this.hoverOutFunction = callback;
+    this.on("pointerout", this.hoverOutFunction);
+    return this;
+  }
   add(...children) {
     this.addChild(...children);
     return this;
@@ -53681,50 +53413,7 @@ var Graphic = class extends Container {
     return this;
   }
   dispose() {
-    this.destroy({
-      children: true
-    });
-  }
-  resize(objectName) {
-    engine.objectResizer.update(objectName);
-  }
-};
-var ButtonImage = class extends Image2 {
-  constructor(objectNotation) {
-    super(objectNotation);
-    this.name = objectNotation.name;
-    this.eventMode = "static";
-    this.cursor = "pointer";
-    this.clickFunction = () => {
-      this.ClickEvent();
-    };
-    this.on("click", this.clickFunction);
-  }
-  ClickEvent() {
-    return;
-  }
-  RemoveEvent(type) {
-    if (type === "click") {
-      this.off("click", this.clickFunction);
-    }
-  }
-};
-var Animation2 = class extends AnimatedSprite {
-  constructor(objectName) {
-    const spritesheet = Assets.get(objectName);
-    if (!spritesheet) {
-      throw new Error(
-        `Spritesheet "${objectName}" was not loaded.`
-      );
-    }
-    const frames = spritesheet.animations?.["fly"];
-    if (!frames || frames.length === 0) {
-      throw new Error(
-        `Animation "fly" was not found in "${objectName}".`
-      );
-    }
-    super(frames);
-    resisterObject.registerObject(objectName, this);
+    this.destroy({ children: true });
   }
   resize(objectName) {
     engine.objectResizer.update(objectName);
@@ -53821,203 +53510,26 @@ var LoadingScreen = class extends GameContainer {
   }
 };
 
-// ts/gameObjects/background.ts
-var BackGround = class extends Image2 {
-  constructor(objectNotaion) {
-    super(objectNotaion);
-    this.name = objectNotaion.name;
-  }
-};
-
-// ts/splashScreen/scenes/splashButton.ts
-var SplashButton = class extends ButtonImage {
-  constructor(object) {
-    super(object);
-    this.name = object.name;
-  }
-  ClickEvent() {
-    engine.eventDispatcher.DISPATCH({ type: "button", name: "splash_button", data: { event: "click" } });
-  }
-};
-
 // ts/splashScreen/splashScreen.ts
 var SplashScreen = class extends GameContainer {
   constructor() {
     super(1920, 1080);
-    this.backGround = new BackGround({ name: "splashScreenBackground", stage: "splashScreenBackground" });
-    this.splashButton = new SplashButton({ name: "splahButton", stage: "splahButton" });
-    this.addChild(this.backGround);
-    this.addChild(this.splashButton);
     this.resize();
   }
   resize() {
-    this.backGround.resize(this.backGround.name);
-    this.splashButton.resize(this.splashButton.name);
   }
 };
 
-// ts/gameScreen/scenes/bird.ts
-var Bird = class extends Animation2 {
-  constructor() {
-    super("birdSpriteSheet");
-    this.objectName = "bird";
-    this.anchor.set(0.5);
-    this.scale.set(0.5);
-    this.animationSpeed = 0.15;
-    this.loop = true;
-    this.gotoAndStop(0);
+// ts/gameScreen/scenes/browseButton.ts
+var BrowseButton = class extends Graphic {
+  constructor(object) {
+    super(object);
+    this.name = object.name;
+    this.setButtonMode(true);
+    this.onClickFunction(this.clickEvent);
   }
-  animationPlay() {
-    this.play();
-  }
-  stopAnimation() {
-    this.stop();
-  }
-  setAnimationSpeed(speed) {
-    this.animationSpeed = speed;
-  }
-  resetAnimation() {
-    this.gotoAndStop(0);
-  }
-  setBirdScale(scale) {
-    this.scale.set(scale);
-  }
-};
-
-// ts/gameScreen/scenes/multiplier.ts
-var Multiplier = class extends GameText {
-  constructor(objectNotaion) {
-    super(objectNotaion);
-    this.anchor.set(0.5);
-    this.position.set(0, -300);
-    this.setStyle({
-      fontFamily: "Orbitron",
-      fontSize: 140,
-      fontWeight: "700",
-      align: "center"
-    });
-  }
-};
-
-// ts/gameObjects/textGraphics.ts
-var ButtonGraphic = class extends Graphic {
-  constructor(name, text, options = {}, colors = { default: 5025616, hover: 6732650, pressed: 3706428, disabled: 10395294 }) {
-    super(options);
-    this.isDisabled = false;
-    this.isHovered = false;
-    this.isPressed = false;
-    this.btnWidth = options.width ?? 160;
-    this.btnHeight = options.height ?? 50;
-    this.colors = colors;
-    this.background = new Graphics();
-    this.addChild(this.background);
-    this.textLabel = new Text(text, {
-      fill: 16777215,
-      fontSize: 18,
-      fontWeight: "bold",
-      align: "center"
-    });
-    this.textLabel.anchor.set(0.5);
-    this.textLabel.position.set(this.btnWidth / 2, this.btnHeight / 2);
-    this.addChild(this.textLabel);
-    this.eventMode = "static";
-    this.cursor = "pointer";
-    this.setupEvents();
-    this.updateVisualState();
-  }
-  setupEvents() {
-    this.on("pointerover", this.onPointerOver, this);
-    this.on("pointerout", this.onPointerOut, this);
-    this.on("pointerdown", this.onPointerDown, this);
-    this.on("pointerup", this.onPointerUp, this);
-    this.on("pointerupoutside", this.onPointerUp, this);
-  }
-  // --- Event Handlers ---
-  onPointerOver() {
-    if (this.isDisabled) return;
-    this.isHovered = true;
-    this.updateVisualState();
-  }
-  onPointerOut() {
-    if (this.isDisabled) return;
-    this.isHovered = false;
-    this.isPressed = false;
-    this.updateVisualState();
-  }
-  onPointerDown() {
-    if (this.isDisabled) return;
-    this.isPressed = true;
-    this.updateVisualState();
-  }
-  onPointerUp() {
-    if (this.isDisabled) return;
-    this.isPressed = false;
-    this.updateVisualState();
-  }
-  // --- Visual Redraw ---
-  updateVisualState() {
-    this.background.clear();
-    let currentColor = this.colors.default;
-    if (this.isDisabled) {
-      currentColor = this.colors.disabled;
-    } else if (this.isPressed) {
-      currentColor = this.colors.pressed;
-    } else if (this.isHovered) {
-      currentColor = this.colors.hover;
-    }
-    this.background.beginFill(currentColor);
-    this.background.drawRoundedRect(0, 0, this.btnWidth, this.btnHeight, 8);
-    this.background.endFill();
-  }
-  // --- Public Methods ---
-  setDisabled(disabled) {
-    this.isDisabled = disabled;
-    this.eventMode = disabled ? "none" : "static";
-    this.cursor = disabled ? "default" : "pointer";
-    this.updateVisualState();
-    return this;
-  }
-  setText(text) {
-    this.textLabel.text = text;
-    return this;
-  }
-  onClick(callback) {
-    this.on("pointertap", () => {
-      if (!this.isDisabled) callback();
-    });
-    return this;
-  }
-};
-
-// ts/gameScreen/scenes/cashoutButton.ts
-var PLACE_BET_COLORS = {
-  default: 2664261,
-  hover: 3460695,
-  pressed: 1998388,
-  disabled: 7107965
-};
-var CASHOUT_COLORS = {
-  default: 16750592,
-  hover: 16754470,
-  pressed: 16088064,
-  disabled: 7107965
-};
-var PlaceBetButton = class extends ButtonGraphic {
-  constructor(name, text = "PLACE BET", options = {}) {
-    super(name, text, options, PLACE_BET_COLORS);
-  }
-  setAmount(amount, currency = "$") {
-    this.setText(`PLACE BET (${currency}${amount.toFixed(2)})`);
-    return this;
-  }
-};
-var CashoutButton = class extends ButtonGraphic {
-  constructor(name, text = "CASHOUT", options = {}) {
-    super(name, text, options, CASHOUT_COLORS);
-  }
-  setCashoutAmount(amount, currency = "$") {
-    this.setText(`CASHOUT ${currency}${amount.toFixed(2)}`);
-    return this;
+  clickEvent() {
+    engine.eventDispatcher.DISPATCH({ type: "custom", name: "open_file_dialog", data: { event: "click" } });
   }
 };
 
@@ -54025,48 +53537,179 @@ var CashoutButton = class extends ButtonGraphic {
 var GameScreen = class extends GameContainer {
   constructor() {
     super(1920, 1080);
-    this.background1 = new BackGround({ name: "backgound1", stage: "gameBackground" });
-    this.background2 = new BackGround({ name: "background2", stage: "gameBackground" });
-    this.addChild(this.background2);
-    this.addChild(this.background1);
-    this.setInitialPosition(this.background2, this.background1);
-    this.bird = new Bird();
-    this.multiplier = new Multiplier({ name: "multiplierText", stage: "GAME START" });
-    this.bird.x = -1920;
-    this.bird.setAnimationSpeed(0.3);
-    this.addChild(this.bird);
-    this.addChild(this.multiplier);
-    this.placeBetBtn = new PlaceBetButton("PlaceBet", "PLACE BET", { name: "placeBet", width: 180, height: 50 });
-    this.cashoutBtn = new CashoutButton("Cahsout", "CASHOUT", { name: "cashout", width: 180, height: 50 });
-    this.placeBetBtn.position.set(0, 300);
-    this.cashoutBtn.position.set(0, 300);
-    this.placeBetBtn.scale = 3;
-    this.cashoutBtn.scale = 3;
-    this.placeBetBtn.visible = false;
-    this.cashoutBtn.visible = false;
-    this.placeBetBtn.onClick(() => this.onPlaceBetClick());
-    this.cashoutBtn.onClick(() => this.onCashoutClick());
-    this.cashoutBtn.setDisabled(true);
-    this.addChild(this.placeBetBtn);
-    this.addChild(this.cashoutBtn);
+    this.createUploadUI();
     this.resize();
   }
-  setInitialPosition(background1, background2) {
-    background1.x = background2.width;
-  }
-  onPlaceBetClick() {
-    this.placeBetBtn.setDisabled(true);
-    this.cashoutBtn.setDisabled(false);
-    engine.eventDispatcher.DISPATCH({ type: "custom", name: "click_button", data: { button: "placeBet" } });
-  }
-  onCashoutClick() {
-    this.cashoutBtn.setDisabled(true);
-    this.placeBetBtn.setDisabled(false);
-    engine.eventDispatcher.DISPATCH({ type: "custom", name: "click_button", data: { button: "cashout" } });
+  createUploadUI() {
+    this.background = new Graphic({
+      name: "viewerBackground"
+    });
+    this.background.setSize(1920, 1080);
+    this.background.setPosition(0, 0);
+    this.panel = new Graphic({
+      name: "uploadPanel"
+    });
+    this.panel.setSize(900, 700);
+    this.panel.setPosition(0, 0);
+    this.panel.setBackground(1321021, 1, 32);
+    this.panel.setBorder(3234416, 2, 1, 32);
+    this.title = new GameText({
+      name: "uploadTitle",
+      stage: "SPINE VIEWER"
+    });
+    this.title.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 46,
+      fontWeight: "700",
+      letterSpacing: 4
+    });
+    this.title.setGradient([
+      6809849,
+      3718648,
+      8490232
+    ]);
+    this.title.setPosition(0, -275);
+    this.description = new GameText({
+      name: "uploadDescription",
+      stage: "Bring your Spine characters to life"
+    });
+    this.description.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 19,
+      fontWeight: "400",
+      fill: 11913689,
+      letterSpacing: 0.5
+    });
+    this.description.setPosition(0, -220);
+    this.dropArea = new Graphic({
+      name: "dropArea"
+    });
+    this.dropArea.setSize(650, 350);
+    this.dropArea.setPosition(0, -5);
+    this.dropArea.setBackground(1652298, 1, 24);
+    this.dropArea.setBorder(3967909, 2, 1, 24);
+    this.dropIcon = new GameText({
+      name: "dropIcon",
+      stage: "\u2191"
+    });
+    this.dropIcon.setStyle({
+      fontFamily: "Arial",
+      fontSize: 56,
+      fontWeight: "700"
+    });
+    this.dropIcon.setGradient([
+      2282478,
+      3718648,
+      8490232
+    ]);
+    this.dropIcon.setPosition(0, -105);
+    this.dropText = new GameText({
+      name: "dropText",
+      stage: "DROP YOUR SPINE PROJECT"
+    });
+    this.dropText.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 22,
+      fontWeight: "700",
+      fill: 16777215,
+      letterSpacing: 1
+    });
+    this.dropText.setPosition(0, -30);
+    this.dropSubText = new GameText({
+      name: "dropSubText",
+      stage: "Drag & drop your files here"
+    });
+    this.dropSubText.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 16,
+      fontWeight: "400",
+      fill: 10993100
+    });
+    this.dropSubText.setPosition(0, 8);
+    this.dropHint = new GameText({
+      name: "dropHint",
+      stage: "JSON  \u2022  SKEL  \u2022  ATLAS  \u2022  PNG  \u2022  JPG  \u2022  WEBP"
+    });
+    this.dropHint.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 13,
+      fontWeight: "500",
+      fill: 7443364,
+      letterSpacing: 0.8
+    });
+    this.dropHint.setPosition(0, 42);
+    this.browseButton = new BrowseButton({
+      name: "browseButton"
+    });
+    this.browseButton.setSize(260, 58);
+    this.browseButton.setPosition(0, 120);
+    this.browseButton.setBackground(1477293, 1, 16);
+    this.browseButton.setBorder(4376296, 2, 1, 16);
+    this.browseText = new GameText({
+      name: "browseText",
+      stage: "\uFF0B  BROWSE FILES"
+    });
+    this.browseText.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 17,
+      fontWeight: "700",
+      fill: 16777215,
+      letterSpacing: 0.8
+    });
+    this.browseText.setPosition(0, 120);
+    this.supportedText = new GameText({
+      name: "supportedText",
+      stage: "Select your Spine skeleton, atlas and texture files"
+    });
+    this.supportedText.setStyle({
+      fontFamily: "Trebuchet MS",
+      fontSize: 14,
+      fontWeight: "400",
+      fill: 7442593
+    });
+    this.supportedText.setPosition(0, 210);
+    this.addChild(
+      this.background,
+      this.panel,
+      this.title,
+      this.description,
+      this.dropArea,
+      this.dropIcon,
+      this.dropText,
+      this.dropSubText,
+      this.dropHint,
+      this.browseButton,
+      this.browseText,
+      this.supportedText
+    );
   }
   resize() {
-    this.background1.resize(this.background1.name);
-    this.multiplier.resize(this.multiplier.objectName);
+  }
+};
+
+// assets/json/config.json
+var config_default = {
+  json: {
+    config: "config",
+    manifest: "manifest",
+    sounds: "sounds"
+  },
+  soundsEnabled: false,
+  loadingScreen: true,
+  splashScreen: false,
+  gameScreen: true
+};
+
+// ts/config/config.ts
+var Config = class _Config {
+  constructor() {
+    Object.assign(this, structuredClone(config_default));
+  }
+  static getInstance() {
+    if (!_Config.instance) {
+      _Config.instance = new _Config();
+    }
+    return _Config.instance;
   }
 };
 
@@ -54076,6 +53719,19 @@ var Game = class {
     this.lodingScreen = null;
     this.gameScreen = null;
     this.splashScreen = null;
+    this.isLoadingScreenEnabled = true;
+    this.isSplashScreenEnabled = true;
+    this.isGameScreenEnabled = true;
+    this.config = Config.getInstance();
+    if (this.config.loadingScreen !== void 0) {
+      this.isLoadingScreenEnabled = this.config.loadingScreen;
+    }
+    if (this.config.splashScreen !== void 0) {
+      this.isSplashScreenEnabled = this.config.splashScreen;
+    }
+    if (this.config.gameScreen !== void 0) {
+      this.isGameScreenEnabled = this.config.gameScreen;
+    }
     this.start();
   }
   async start() {
@@ -54087,11 +53743,21 @@ var Game = class {
   }
   async initEventListeners() {
     engine.eventDispatcher.addCustomListener({ type: "loader", name: "load_complete" }, (e2) => {
-      engine.eventDispatcher.DISPATCH({ type: "game", name: "loading_screen", data: {} });
-      this.loadAsets.loadGameScreenAssets();
+      if (this.isLoadingScreenEnabled) {
+        engine.eventDispatcher.DISPATCH({ type: "game", name: "loading_screen", data: {} });
+        this.loadAsets.loadGameScreenAssets();
+      } else {
+        this.loadAsets.loadGameScreenAssets();
+      }
     });
     engine.eventDispatcher.addCustomListener({ type: "loader", name: "pre_loadComplete" }, (e2) => {
-      engine.eventDispatcher.DISPATCH({ type: "game", name: "splash_screen", data: {} });
+      if (this.isSplashScreenEnabled) {
+        engine.eventDispatcher.DISPATCH({ type: "game", name: "splash_screen", data: {} });
+      } else {
+        if (this.isGameScreenEnabled) {
+          engine.eventDispatcher.DISPATCH({ type: "game", name: "game_screen", data: {} });
+        }
+      }
     });
     engine.eventDispatcher.addCustomListener({ type: "button", name: "splash_button" }, (e2) => {
       if (e2.data.event === "click") {
@@ -54133,8 +53799,7 @@ var Game = class {
     this.Engine = new Engine();
     this.application = new GameApplication();
     await this.application.init();
-    this.loadAsets = new AssetLoader();
-    await this.loadAsets.loadLoadingAssets();
+    this.loadAsets = new AssetLoader(this.config);
     this.events();
     this.resize();
   }
@@ -54147,735 +53812,118 @@ var Game = class {
   }
 };
 
-// ts/crash/crash.ts
-var Socket = class {
+// ts/fileUpload/assetsProcess.ts
+var AssetProcessor = class {
   constructor() {
-    this.listeners = /* @__PURE__ */ new Map();
-    this.bettingTimer = null;
-    this.multiplierTimer = null;
-    this.crashWaitTimer = null;
-    this.roundStartWaitTimer = null;
-    this.BETTING_TIME = 5;
-    this.WAIT_TIME = 3e3;
-    this.UPDATE_INTERVAL = 16;
-    this.roundId = 0;
-    this.multiplier = 1;
-    this.crashPoint = 1;
-    this.isBetting = false;
-    this.isRunning = false;
-    this.isWaiting = false;
-    this.betData = {
-      amount: 0,
-      placed: false,
-      cashedOut: false,
-      cashoutMultiplier: 0,
-      winAmount: 0
+    engine.eventDispatcher.addCustomListener(
+      {
+        type: "custom",
+        name: "store_complete"
+      },
+      (event) => {
+        this.process(event.data.files);
+      }
+    );
+  }
+  process(files) {
+    const assetData = {
+      textures: []
     };
-    this.multiplierRanges = [
-      { start: 1, end: 2, duration: 3e3 },
-      { start: 2, end: 5, duration: 3e3 },
-      { start: 5, end: 20, duration: 3e3 },
-      { start: 20, end: 100, duration: 3e3 },
-      { start: 100, end: 500, duration: 5e3 },
-      { start: 500, end: 5e3, duration: 1e4 }
-    ];
-    this.connect();
-  }
-  connect() {
-    this.emit({
-      type: "connected",
-      data: { message: "Socket connected" }
-    });
-    this.startCrashWait();
-  }
-  on(type, callback) {
-    const callbacks = this.listeners.get(type) || [];
-    callbacks.push(callback);
-    this.listeners.set(type, callbacks);
-  }
-  off(type, callback) {
-    const callbacks = this.listeners.get(type);
-    if (!callbacks) return;
-    const index = callbacks.indexOf(callback);
-    if (index !== -1) {
-      callbacks.splice(index, 1);
-    }
-    if (callbacks.length === 0) {
-      this.listeners.delete(type);
-    }
-  }
-  emit(message) {
-    const callbacks = this.listeners.get(message.type);
-    if (!callbacks) return;
-    callbacks.forEach((callback) => callback(message));
-  }
-  placeBet(amount) {
-    if (!this.isBetting) {
-      this.emit({
-        type: "bet_rejected",
-        data: {
-          errorCode: "BETTING_CLOSED",
-          message: "Betting is not open"
-        }
-      });
-      return;
-    }
-    if (this.betData.placed) {
-      this.emit({
-        type: "bet_rejected",
-        data: {
-          errorCode: "BET_ALREADY_PLACED",
-          message: "Bet already placed"
-        }
-      });
-      return;
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      this.emit({
-        type: "bet_rejected",
-        data: {
-          errorCode: "INVALID_AMOUNT",
-          message: "Invalid bet amount"
-        }
-      });
-      return;
-    }
-    this.betData.amount = amount;
-    this.betData.placed = true;
-    this.betData.cashedOut = false;
-    this.betData.cashoutMultiplier = 0;
-    this.betData.winAmount = 0;
-    this.emit({
-      type: "bet_placed",
-      data: {
-        betAmount: amount,
-        roundId: this.roundId,
-        message: "Bet placed successfully"
-      }
-    });
-  }
-  cashout() {
-    if (!this.isRunning) {
-      this.emit({
-        type: "cashout_rejected",
-        data: {
-          errorCode: "ROUND_NOT_RUNNING",
-          message: "Round is not running"
-        }
-      });
-      return;
-    }
-    if (!this.betData.placed) {
-      this.emit({
-        type: "cashout_rejected",
-        data: {
-          errorCode: "NO_BET",
-          message: "No active bet"
-        }
-      });
-      return;
-    }
-    if (this.betData.cashedOut) {
-      this.emit({
-        type: "cashout_rejected",
-        data: {
-          errorCode: "ALREADY_CASHED_OUT",
-          message: "Bet already cashed out"
-        }
-      });
-      return;
-    }
-    const cashoutMultiplier = this.multiplier;
-    const winAmount = this.betData.amount * cashoutMultiplier;
-    const profit = winAmount - this.betData.amount;
-    this.betData.cashedOut = true;
-    this.betData.cashoutMultiplier = cashoutMultiplier;
-    this.betData.winAmount = winAmount;
-    this.emit({
-      type: "cashout",
-      data: {
-        multiplier: cashoutMultiplier,
-        betAmount: this.betData.amount,
-        winAmount,
-        profit,
-        roundId: this.roundId,
-        message: "Cashout successful"
-      }
-    });
-  }
-  startCrashWait() {
-    this.stopCrashWaitTimer();
-    this.stopRoundStartWaitTimer();
-    this.stopBettingTimer();
-    this.stopMultiplierTimer();
-    this.isWaiting = true;
-    this.isBetting = false;
-    this.isRunning = false;
-    this.crashWaitTimer = setTimeout(() => {
-      this.crashWaitTimer = null;
-      this.isWaiting = false;
-      this.startBettingPhase();
-    }, this.WAIT_TIME);
-  }
-  startBettingPhase() {
-    this.stopBettingTimer();
-    this.isWaiting = false;
-    this.isBetting = true;
-    this.isRunning = false;
-    this.roundId++;
-    this.multiplier = 1;
-    this.betData = {
-      amount: 0,
-      placed: false,
-      cashedOut: false,
-      cashoutMultiplier: 0,
-      winAmount: 0
-    };
-    let timer = this.BETTING_TIME;
-    this.emit({
-      type: "bet_timer",
-      data: {
-        timer,
-        roundId: this.roundId,
-        message: "Betting started"
-      }
-    });
-    this.bettingTimer = setInterval(() => {
-      timer--;
-      if (timer > 0) {
-        this.emit({
-          type: "bet_timer",
-          data: {
-            timer,
-            roundId: this.roundId
-          }
-        });
+    files.forEach((file) => {
+      const extension = this.getExtension(file.name);
+      if (extension === ".json" || extension === ".skel") {
+        assetData.skeleton = file;
         return;
       }
-      this.stopBettingTimer();
-      this.isBetting = false;
-      this.emit({
-        type: "bet_closed",
-        data: {
-          betAmount: this.betData.placed ? this.betData.amount : 0,
-          roundId: this.roundId,
-          message: this.betData.placed ? "Betting closed" : "No bet placed"
-        }
-      });
-      this.startRoundStartWait();
-    }, 1e3);
-  }
-  startRoundStartWait() {
-    this.stopRoundStartWaitTimer();
-    this.isWaiting = true;
-    this.isBetting = false;
-    this.isRunning = false;
-    this.roundStartWaitTimer = setTimeout(() => {
-      this.roundStartWaitTimer = null;
-      this.isWaiting = false;
-      this.startRound();
-    }, this.WAIT_TIME);
-  }
-  startRound() {
-    this.stopMultiplierTimer();
-    this.isWaiting = false;
-    this.isBetting = false;
-    this.isRunning = true;
-    this.multiplier = 1;
-    this.crashPoint = this.generateCrashPoint();
-    const startTime = Date.now();
-    this.emit({
-      type: "round_start",
-      data: {
-        multiplier: this.multiplier,
-        crashPoint: this.crashPoint,
-        roundId: this.roundId,
-        message: "Round started"
-      }
-    });
-    this.multiplierTimer = setInterval(() => {
-      const elapsedTime = Date.now() - startTime;
-      this.multiplier = this.calculateMultiplier(elapsedTime);
-      if (this.multiplier >= this.crashPoint) {
-        this.multiplier = this.crashPoint;
-        this.emit({
-          type: "multiplier_update",
-          data: {
-            multiplier: this.multiplier,
-            roundId: this.roundId
-          }
-        });
-        this.crashRound();
+      if (extension === ".atlas") {
+        assetData.atlas = file;
         return;
       }
-      this.emit({
-        type: "multiplier_update",
-        data: {
-          multiplier: this.multiplier,
-          roundId: this.roundId
-        }
-      });
-    }, this.UPDATE_INTERVAL);
-  }
-  crashRound() {
-    if (!this.isRunning) return;
-    this.stopMultiplierTimer();
-    this.isRunning = false;
-    this.isBetting = false;
-    this.isWaiting = false;
-    this.emit({
-      type: "crash",
-      data: {
-        multiplier: this.multiplier,
-        crashPoint: this.crashPoint,
-        roundId: this.roundId,
-        message: "Round crashed"
+      if (extension === ".png" || extension === ".jpg" || extension === ".jpeg" || extension === ".webp") {
+        assetData.textures.push(file);
       }
     });
-    this.emit({
-      type: "round_end",
-      data: {
-        multiplier: this.multiplier,
-        crashPoint: this.crashPoint,
-        roundId: this.roundId,
-        message: "Round ended"
-      }
+    console.log("Asset processing complete:", assetData);
+    engine.eventDispatcher.DISPATCH({
+      type: "custom",
+      name: "asset_process_complete",
+      data: assetData
     });
-    this.startCrashWait();
   }
-  generateCrashPoint() {
-    const random3 = Math.random();
-    if (random3 === 0) return 1;
-    const crashPoint = 0.96 / (1 - random3);
-    return Math.max(1, Number(crashPoint.toFixed(2)));
-  }
-  calculateMultiplier(elapsedTime) {
-    let accumulatedTime = 0;
-    for (const range of this.multiplierRanges) {
-      const rangeEndTime = accumulatedTime + range.duration;
-      if (elapsedTime <= rangeEndTime) {
-        const rangeElapsed = elapsedTime - accumulatedTime;
-        const progress = rangeElapsed / range.duration;
-        const value = range.start + (range.end - range.start) * progress;
-        return Number(value.toFixed(2));
-      }
-      accumulatedTime = rangeEndTime;
+  getExtension(fileName) {
+    const index = fileName.lastIndexOf(".");
+    if (index === -1) {
+      return "";
     }
-    return this.multiplierRanges[this.multiplierRanges.length - 1].end;
-  }
-  stopBettingTimer() {
-    if (this.bettingTimer !== null) {
-      clearInterval(this.bettingTimer);
-      this.bettingTimer = null;
-    }
-  }
-  stopMultiplierTimer() {
-    if (this.multiplierTimer !== null) {
-      clearInterval(this.multiplierTimer);
-      this.multiplierTimer = null;
-    }
-  }
-  stopCrashWaitTimer() {
-    if (this.crashWaitTimer !== null) {
-      clearTimeout(this.crashWaitTimer);
-      this.crashWaitTimer = null;
-    }
-  }
-  stopRoundStartWaitTimer() {
-    if (this.roundStartWaitTimer !== null) {
-      clearTimeout(this.roundStartWaitTimer);
-      this.roundStartWaitTimer = null;
-    }
-  }
-  getMultiplier() {
-    return this.multiplier;
-  }
-  getCrashPoint() {
-    return this.crashPoint;
-  }
-  getRoundId() {
-    return this.roundId;
-  }
-  getBetData() {
-    return { ...this.betData };
-  }
-  getState() {
-    return {
-      isWaiting: this.isWaiting,
-      isBetting: this.isBetting,
-      isRunning: this.isRunning
-    };
-  }
-  destroy() {
-    this.stopBettingTimer();
-    this.stopMultiplierTimer();
-    this.stopCrashWaitTimer();
-    this.stopRoundStartWaitTimer();
-    this.listeners.clear();
-    this.isBetting = false;
-    this.isRunning = false;
-    this.isWaiting = false;
+    return fileName.substring(index).toLowerCase();
   }
 };
-var socket = new Socket();
-var messageTypes = [
-  "connected",
-  "bet_timer",
-  "bet_placed",
-  "bet_rejected",
-  "bet_closed",
-  "round_start",
-  "multiplier_update",
-  "cashout",
-  "cashout_rejected",
-  "win",
-  "crash",
-  "round_end",
-  "error"
-];
-var getTimestamp = () => (/* @__PURE__ */ new Date()).toLocaleTimeString();
-messageTypes.forEach((type) => {
-  socket.on(type, (message) => {
-    const time = getTimestamp();
-    const { data } = message;
-    switch (type) {
-      case "connected":
-        console.log(`[${time}] \u{1F7E2} CONNECTED | ${data?.message}`);
-        break;
-      case "bet_timer":
-        console.log(`[${time}] \u23F3 BETTING TIMER | Round #${data?.roundId} - Time left: ${data?.timer}s`);
-        break;
-      case "bet_placed":
-        console.log(`[${time}] \u2705 BET PLACED | Round #${data?.roundId} - Amount: $${data?.betAmount}`);
-        break;
-      case "bet_rejected":
-        console.warn(`[${time}] \u274C BET REJECTED | Code: ${data?.errorCode} - ${data?.message}`);
-        break;
-      case "bet_closed":
-        console.log(`[${time}] \u{1F512} BETTING CLOSED | Round #${data?.roundId} - Active Bet: $${data?.betAmount}`);
-        break;
-      case "round_start":
-        console.log(`[${time}] \u{1F680} ROUND START | Round #${data?.roundId} - Target Crash Point: ${data?.crashPoint}x`);
-        break;
-      case "multiplier_update":
-        console.log(`[${time}] \u{1F4C8} MULTIPLIER | Round #${data?.roundId} -> ${data?.multiplier?.toFixed(2)}x`);
-        break;
-      case "cashout":
-        console.log(`[${time}] \u{1F4B0} CASHOUT SUCCESS | Round #${data?.roundId} - Multiplier: ${data?.multiplier}x | Won: $${data?.winAmount} (Profit: $${data?.profit})`);
-        break;
-      case "cashout_rejected":
-        console.warn(`[${time}] \u26A0\uFE0F CASHOUT REJECTED | Code: ${data?.errorCode} - ${data?.message}`);
-        break;
-      case "crash":
-        console.log(`[${time}] \u{1F4A5} CRASHED! | Round #${data?.roundId} crashed at ${data?.crashPoint}x`);
-        break;
-      case "round_end":
-        console.log(`[${time}] \u{1F3C1} ROUND END | Round #${data?.roundId} finished.`);
-        console.log("--------------------------------------------------");
-        break;
-      case "error":
-        console.error(`[${time}] \u{1F6A8} ERROR | Code: ${data?.errorCode} - ${data?.message}`);
-        break;
-      default:
-        console.log(`[${time}] \u{1F4E9} MESSAGE [${type}]`, data);
+
+// ts/fileUpload/fileupload.ts
+var FileUpload = class {
+  constructor() {
+    new AssetProcessor();
+    engine.eventDispatcher.addCustomListener(
+      {
+        type: "custom",
+        name: "open_file_dialog"
+      },
+      () => {
+        this.openFileDialog();
+      }
+    );
+  }
+  openFileDialog() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.onchange = () => {
+      if (!input.files || input.files.length === 0) {
+        return;
+      }
+      const files = Array.from(input.files);
+      this.uploadFiles(files);
+    };
+    input.click();
+  }
+  async uploadFiles(files) {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    try {
+      const response = await fetch("http://localhost:3001/upload", {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        throw new Error("File upload failed.");
+      }
+      const result = await response.json();
+      console.log("Files uploaded successfully:", result);
+      engine.eventDispatcher.DISPATCH({
+        type: "custom",
+        name: "store_complete",
+        data: result
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      engine.eventDispatcher.DISPATCH({
+        type: "custom",
+        name: "store_error",
+        data: {
+          error
+        }
+      });
     }
-  });
-});
+  }
+};
 
 // ts/index.ts
 var Main = class extends Game {
   constructor() {
     super();
-    this.isBetPlaced = false;
-    this.currentMultiplier = 0;
-    this.isRoundActive = false;
-    this.backgroundMoving = false;
-    this.BG_WIDTH = 1920;
-    this.backgroundLoop = () => {
-      const bg1 = engine.gameObjects.OBJECTS.backgound1;
-      const bg2 = engine.gameObjects.OBJECTS.background2;
-      if (!bg1 || !bg2) return;
-      const width = bg1.width || this.BG_WIDTH;
-      const speed = 4;
-      bg1.x -= speed;
-      bg2.x -= speed;
-      if (bg1.x <= -width) {
-        bg1.x = bg2.x + width;
-      }
-      if (bg2.x <= -width) {
-        bg2.x = bg1.x + width;
-      }
-    };
-    window.addEventListener("resize", () => this.handleResize());
-    engine.eventDispatcher.addCustomListener({ type: "button", name: "splash_button" }, (e2) => {
-      if (e2.data?.event === "click" && !this.socket) {
-        this.socket = new Socket();
-        this.initSocket();
-      }
-    });
-    engine.eventDispatcher.addCustomListener({ type: "custom", name: "click_button" }, (e2) => {
-      const btnType = e2.data?.button;
-      const amount = e2.data?.amount ?? 10;
-      if (btnType === "placeBet") {
-        this.handleBetAction(amount);
-      } else if (btnType === "cancelBet") {
-        this.handleCancelAction();
-      } else if (btnType === "cashout") {
-        this.handleCashoutAction();
-      }
-    });
-  }
-  initSocket() {
-    this.socket.on("connected", (message) => {
-      console.log("CONNECTED", message.data);
-    });
-    this.socket.on("bet_timer", (message) => {
-      const timer = Number(message.data?.timer ?? 0);
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      this.isRoundActive = false;
-      engine.gsap.to(object, {
-        x: 0,
-        y: -350,
-        alpha: 1,
-        duration: 0.5,
-        ease: "power2.out"
-      });
-      object.style.fontFamily = "Arial";
-      object.setText(`NEXT GAME START IN ${timer}s`);
-      object.setGradient([728890, 1527462, 6953882]);
-      object.setFontSize(64);
-      object.scale.set(1);
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "betting_phase",
-        data: { timer, isBetPlaced: this.isBetPlaced }
-      });
-      if (timer === 1) {
-        this.playTween("start");
-      }
-    });
-    this.socket.on("bet_closed", () => {
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      if (this.isBetPlaced) {
-        object.setText("BET PLACED");
-        object.setGradient([15158, 43158, 54527]);
-        object.setFontSize(100);
-        object.scale.set(1.05);
-      } else {
-        object.setText("BET CLOSED");
-        object.setGradient([4855296, 16739584, 13959168]);
-        object.setFontSize(105);
-        object.scale.set(1.05);
-      }
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "bet_closed",
-        data: {}
-      });
-    });
-    this.socket.on("bet_placed", (message) => {
-      this.isBetPlaced = true;
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "bet_confirmed",
-        data: { betAmount: message.data?.betAmount }
-      });
-    });
-    this.socket.on("bet_rejected", (message) => {
-      this.isBetPlaced = false;
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      object.setText(message.data?.message?.toUpperCase() || "BET REJECTED");
-      object.setGradient([6031872, 16727296, 12000284]);
-      object.setFontSize(105);
-      object.scale.set(1);
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "bet_rejected",
-        data: message.data
-      });
-    });
-    this.socket.on("round_start", (message) => {
-      this.isRoundActive = true;
-      this.currentMultiplier = message.data?.multiplier ?? 1;
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      object.x = 0;
-      object.y = -350;
-      object.alpha = 1;
-      object.style.fontFamily = "Arial";
-      object.setText(`x${this.currentMultiplier.toFixed(2)}`);
-      object.setGradient([413243, 1096065, 8702998]);
-      object.setFontSize(110);
-      object.scale.set(1);
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "round_started",
-        data: { isBetPlaced: this.isBetPlaced, multiplier: this.currentMultiplier }
-      });
-    });
-    this.socket.on("multiplier_update", (message) => {
-      this.currentMultiplier = Number(message.data?.multiplier ?? 1);
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      object.setText(`x${this.currentMultiplier.toFixed(2)}`);
-      if (this.currentMultiplier >= 20) {
-        object.setGradient([4850766, 14239471, 8141549]);
-        object.setFontSize(145);
-        object.scale.set(1.25);
-      } else if (this.currentMultiplier >= 10) {
-        object.setGradient([8330525, 16727296, 16766464]);
-        object.setFontSize(135);
-        object.scale.set(1.2);
-      } else if (this.currentMultiplier >= 5) {
-        object.setGradient([7877903, 16096779, 16638023]);
-        object.setFontSize(125);
-        object.scale.set(1.15);
-      } else if (this.currentMultiplier >= 2) {
-        object.setGradient([417606, 1096065, 10741301]);
-        object.setFontSize(115);
-        object.scale.set(1.08);
-      } else {
-        object.setGradient([413243, 1483594, 8702998]);
-        object.setFontSize(110);
-        object.scale.set(1);
-      }
-      object.alpha = 1;
-      if (this.isBetPlaced && this.isRoundActive) {
-        engine.eventDispatcher.DISPATCH({
-          type: "custom",
-          name: "multiplier_change",
-          data: { multiplier: this.currentMultiplier }
-        });
-      }
-    });
-    this.socket.on("cashout", (message) => {
-      this.isBetPlaced = false;
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      object.setText(`CASHED OUT x${message.data?.multiplier?.toFixed(2)}`);
-      object.setGradient([7421714, 16096779, 16638023]);
-      object.setFontSize(100);
-      object.scale.set(1.1);
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "cashout_success",
-        data: message.data
-      });
-    });
-    this.socket.on("cashout_rejected", (message) => {
-      console.warn("Cashout failed:", message.data?.message);
-    });
-    this.socket.on("crash", (message) => {
-      this.isBetPlaced = false;
-      this.isRoundActive = false;
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      object.style.fontFamily = "Impact";
-      object.setText(`CRASHED @ x${message.data?.crashPoint?.toFixed(2)}`);
-      object.setGradient([16711680, 9109504, 4524554]);
-      object.setFontSize(120);
-      object.scale.set(1.15);
-      engine.gsap.killTweensOf(object);
-      object.position.set(0, 0);
-      object.alpha = 0;
-      engine.gsap.to(object, {
-        alpha: 1,
-        duration: 0.8,
-        ease: "power2.inOut"
-      });
-      this.playTween("end");
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "round_crashed",
-        data: message.data
-      });
-    });
-    this.socket.on("error", (message) => {
-      const object = engine.gameObjects.OBJECTS.multiplierText;
-      object.setText("ERROR");
-      object.setGradient([4524554, 15680580, 10033947]);
-      object.setFontSize(100);
-      object.scale.set(1);
-    });
-  }
-  // Direct calls to Socket public API
-  handleBetAction(amount = 10) {
-    this.socket?.placeBet(amount);
-    engine.eventDispatcher.DISPATCH({ type: "custom", name: "bet_pending", data: {} });
-  }
-  handleCancelAction() {
-    this.isBetPlaced = false;
-    engine.eventDispatcher.DISPATCH({ type: "custom", name: "bet_cancelled", data: {} });
-  }
-  handleCashoutAction() {
-    this.socket?.cashout();
-  }
-  playTween(mode) {
-    const object = engine.gameObjects.OBJECTS.birdSpriteSheet;
-    if (!object) return;
-    if (mode === "start") {
-      object.play?.();
-      engine.gsap.killTweensOf(object);
-      engine.gsap.fromTo(
-        object,
-        { x: -(1920 / 2) - 100, y: 0 },
-        {
-          x: 0,
-          y: 0,
-          duration: 1,
-          ease: "power2.in",
-          onComplete: () => this.moveBackground(true)
-        }
-      );
-      engine.gsap.fromTo(
-        object.scale,
-        { x: 1, y: 1 },
-        { x: 2.5, y: 2.5, duration: 1, ease: "power2.in" }
-      );
-    } else if (mode === "end") {
-      this.moveBackground(false);
-      engine.gsap.killTweensOf(object);
-      engine.gsap.fromTo(
-        object,
-        { x: object.x, y: object.y },
-        { x: 1920 / 2 + 100, y: -200, duration: 1, ease: "power2.out" }
-      );
-      engine.gsap.fromTo(
-        object.scale,
-        { x: object.scale.x, y: object.scale.y },
-        {
-          x: 1,
-          y: 1,
-          duration: 1,
-          ease: "power2.out"
-        }
-      );
-    }
-  }
-  moveBackground(start) {
-    if (start) {
-      if (this.backgroundMoving) return;
-      this.backgroundMoving = true;
-      this.resetBackgroundPositions();
-      engine.app.ticker.add(this.backgroundLoop);
-    } else {
-      this.backgroundMoving = false;
-      engine.app.ticker.remove(this.backgroundLoop);
-    }
-  }
-  resetBackgroundPositions() {
-    const bg1 = engine.gameObjects.OBJECTS.backgound1;
-    const bg2 = engine.gameObjects.OBJECTS.background2;
-    if (!bg1 || !bg2) return;
-    bg1.x = 0;
-    bg2.x = bg1.width || this.BG_WIDTH;
-  }
-  handleResize() {
-    const bg1 = engine.gameObjects.OBJECTS.backgound1;
-    const bg2 = engine.gameObjects.OBJECTS.background2;
-    if (!bg1 || !bg2) return;
-    const width = bg1.width || this.BG_WIDTH;
-    if (bg1.x < bg2.x) {
-      bg2.x = bg1.x + width;
-    } else {
-      bg1.x = bg2.x + width;
-    }
+    new FileUpload();
   }
 };
 new Main();

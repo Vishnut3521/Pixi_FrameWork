@@ -22,7 +22,8 @@ export const GameEventName = {
         POST_LOADPROGRESS: "post_loadProgress",
         POST_LOADCOMPLETE: "post_loadComplete",
         LOAD_FINISH: "load_finish",
-        CONTINUE_PROGRESS_LOAD: "continue_progress_load"
+        CONTINUE_PROGRESS_LOAD: "continue_progress_load",
+        ASSET_LOAD_ERROR: "asset_load_error"
     },
     BUTTON:{
         SPLASH_BUTTON : "splash_button"

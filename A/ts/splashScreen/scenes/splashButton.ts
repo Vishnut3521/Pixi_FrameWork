@@ -5,6 +5,10 @@ export class SplashButton extends ButtonImage{
     constructor(object : any){
         super(object)
         this.name = object.name
+        this.setButtonMode(true)
+        this.onClickFunction(()=>{
+            this.ClickEvent()
+        })
     }
 
     public ClickEvent(): void {
