@@ -53877,6 +53877,7 @@ var FileUpload = class {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
+    input.accept = ".json,.skel,.atlas,.png,.jpg,.jpeg,.webp";
     input.onchange = () => {
       if (!input.files || input.files.length === 0) {
         return;
@@ -53888,33 +53889,579 @@ var FileUpload = class {
   }
   async uploadFiles(files) {
     const formData = new FormData();
-    files.forEach((file) => {
+    formData.append("projectName", "project-a");
+    for (const file of files) {
       formData.append("files", file);
-    });
-    try {
-      const response = await fetch("http://localhost:3001/upload", {
+    }
+    const response = await fetch(
+      "http://localhost:3001/upload",
+      {
         method: "POST",
         body: formData
-      });
-      if (!response.ok) {
-        throw new Error("File upload failed.");
       }
-      const result = await response.json();
-      console.log("Files uploaded successfully:", result);
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "store_complete",
-        data: result
-      });
+    );
+    const result = await response.json();
+    console.log("Upload result:", result);
+    if (!response.ok) {
+      throw new Error(result.error ?? result.message);
+    }
+  }
+};
+
+// ts/fileUpload/spineOrganized.ts
+var SpineAssetOrganizer = class {
+  constructor() {
+    this.skeletonExtensions = [".json", ".skel"];
+    this.atlasExtensions = [".atlas", ".atlas.txt"];
+    this.textureExtensions = [
+      ".png",
+      ".webp",
+      ".jpg",
+      ".jpeg",
+      ".avif"
+    ];
+    this.files = [];
+    this.organized = {
+      spine: [],
+      spritesheets: [],
+      orphans: [],
+      files: []
+    };
+    console.log("[SpineAssetOrganizer] Constructor called.");
+  }
+  /**
+   * Main entry point for organizing a collection of files.
+   */
+  scan(input) {
+    console.group("[SpineAssetOrganizer] scan()");
+    try {
+      const files = this.flatten(input);
+      console.log("Input received:", input);
+      console.log("Total valid files:", files.length);
+      console.table(
+        files.map((file) => ({
+          name: file.name,
+          path: file.path,
+          size: file.size,
+          extension: this.ext(file.name),
+          directory: this.directoryKey(file.path)
+        }))
+      );
+      this.files = files;
+      this.organized = this.organize(files);
+      console.log("Final organization:");
+      console.log("Spine groups:", this.organized.spine.length);
+      console.log(
+        "Spritesheets:",
+        this.organized.spritesheets.length
+      );
+      console.log("Orphan files:", this.organized.orphans.length);
+      this.printOrganization(this.organized);
+      return this.organized;
     } catch (error) {
-      console.error("Upload error:", error);
-      engine.eventDispatcher.DISPATCH({
-        type: "custom",
-        name: "store_error",
-        data: {
-          error
-        }
+      console.error("[SpineAssetOrganizer] scan() failed:", error);
+      throw error;
+    } finally {
+      console.groupEnd();
+    }
+  }
+  /**
+   * Groups skeletons with matching atlases and atlas texture pages.
+   */
+  organize(files) {
+    console.group("[SpineAssetOrganizer] organize()");
+    const validFiles = this.flatten(files);
+    const skeletonFiles = validFiles.filter(
+      (file) => this.skeletonExtensions.includes(this.ext(file.name))
+    );
+    const atlasFiles = validFiles.filter(
+      (file) => this.atlasExtensions.includes(this.ext(file.name))
+    );
+    const textureFiles = validFiles.filter(
+      (file) => this.textureExtensions.includes(this.ext(file.name))
+    );
+    console.log("Skeleton candidates:", skeletonFiles);
+    console.log("Atlas candidates:", atlasFiles);
+    console.log("Texture candidates:", textureFiles);
+    const spine = [];
+    const usedFiles = /* @__PURE__ */ new Set();
+    for (const skeleton of skeletonFiles) {
+      console.group(`Skeleton: ${skeleton.path}`);
+      const skeletonDirectory = this.directoryKey(skeleton.path);
+      const skeletonBase = this.baseName(skeleton.name);
+      const project = this.projectName(skeleton.path);
+      console.log("Project:", project);
+      console.log("Directory:", skeletonDirectory);
+      console.log("Base name:", skeletonBase);
+      const matchedAtlases = atlasFiles.filter((atlas) => {
+        const sameProject = this.projectName(atlas.path) === project;
+        const sameDirectory = this.directoryKey(atlas.path) === skeletonDirectory;
+        const sameBase = this.baseName(atlas.name) === skeletonBase;
+        const matches = sameProject && sameDirectory && sameBase;
+        console.log(
+          `Atlas candidate "${atlas.path}":`,
+          { sameProject, sameDirectory, sameBase, matches }
+        );
+        return matches;
       });
+      const atlases = matchedAtlases.length ? matchedAtlases : atlasFiles.filter((atlas) => {
+        const sameProject = this.projectName(atlas.path) === project;
+        const sameDirectory = this.directoryKey(atlas.path) === skeletonDirectory;
+        const matches = sameProject && sameDirectory;
+        if (matches) {
+          console.log(
+            "Using same-folder atlas with a different base name:",
+            atlas.path
+          );
+        }
+        return matches;
+      });
+      const uniqueAtlases = [
+        ...new Map(
+          atlases.map((atlas) => [
+            this.absoluteUrl(atlas.path),
+            atlas
+          ])
+        ).values()
+      ];
+      const matchedTextures = /* @__PURE__ */ new Map();
+      const missingTextures = [];
+      for (const atlas of uniqueAtlases) {
+        const pages = this.parseAtlasPages(atlas);
+        console.log("Atlas:", atlas.path);
+        console.log("Texture pages declared by atlas:", pages);
+        for (const page of pages) {
+          const texture = this.findAtlasTexture(
+            page,
+            atlas,
+            textureFiles
+          );
+          if (texture) {
+            const key = this.absoluteUrl(texture.path);
+            matchedTextures.set(key, texture);
+            usedFiles.add(key);
+            console.log(
+              "\u2705 Texture page matched:",
+              page,
+              "\u2192",
+              texture.path
+            );
+          } else {
+            missingTextures.push(page);
+            console.warn(
+              "\u274C Texture page not found:",
+              page,
+              "declared in",
+              atlas.path
+            );
+          }
+        }
+      }
+      const textureList = [...matchedTextures.values()];
+      const asset = {
+        id: this.absoluteUrl(skeleton.path),
+        skeleton,
+        format: this.ext(skeleton.name) === ".skel" ? "binary" : "json",
+        atlases: uniqueAtlases,
+        textures: textureList,
+        version: null,
+        missingTextures: [...new Set(missingTextures)],
+        complete: uniqueAtlases.length > 0 && textureList.length > 0 && missingTextures.length === 0,
+        project,
+        directory: skeletonDirectory
+      };
+      this.enrich(asset);
+      spine.push(asset);
+      usedFiles.add(this.absoluteUrl(skeleton.path));
+      uniqueAtlases.forEach((atlas) => {
+        usedFiles.add(this.absoluteUrl(atlas.path));
+      });
+      console.log("Created Spine asset:", asset);
+      console.groupEnd();
+    }
+    const spritesheets = validFiles.filter((file) => this.ext(file.name) === ".json").filter((file) => {
+      try {
+        const parsed = JSON.parse(
+          file.content ?? ""
+        );
+        return Boolean(parsed.frames);
+      } catch {
+        return false;
+      }
+    }).map((file) => ({
+      id: this.absoluteUrl(file.path),
+      file,
+      textures: textureFiles.filter(
+        (texture) => this.directoryKey(texture.path) === this.directoryKey(file.path)
+      )
+    }));
+    const orphans = validFiles.filter((file) => {
+      const extension = this.ext(file.name);
+      if (extension === ".json" || extension === ".skel") {
+        return !skeletonFiles.some(
+          (skeleton) => this.absoluteUrl(skeleton.path) === this.absoluteUrl(file.path)
+        ) && !spritesheets.some(
+          (sheet) => this.absoluteUrl(sheet.file.path) === this.absoluteUrl(file.path)
+        );
+      }
+      return !usedFiles.has(this.absoluteUrl(file.path));
+    });
+    const result = {
+      spine,
+      spritesheets,
+      orphans,
+      files: validFiles
+    };
+    console.log("Organization result:", result);
+    console.groupEnd();
+    return result;
+  }
+  /**
+   * Adds detected version and validates the asset group.
+   */
+  enrich(asset) {
+    console.group(`[SpineAssetOrganizer] enrich: ${asset.id}`);
+    asset.version = asset.skeleton ? this.readVersion(asset.skeleton) : null;
+    asset.complete = Boolean(asset.skeleton) && asset.atlases.length > 0 && asset.textures.length > 0 && asset.missingTextures.length === 0;
+    console.log("Detected Spine version:", asset.version);
+    console.log("Asset complete:", asset.complete);
+    console.groupEnd();
+    return asset;
+  }
+  /**
+   * Loads a manifest from the server and organizes its files.
+   */
+  async load(manifestUrl = "/assets/manifest.json") {
+    console.group("[SpineAssetOrganizer] load()");
+    console.log("Manifest URL:", manifestUrl);
+    try {
+      const response = await fetch(manifestUrl);
+      console.log("HTTP status:", response.status);
+      if (!response.ok) {
+        throw new Error(
+          `Manifest request failed: ${response.status} ${response.statusText}`
+        );
+      }
+      const manifest = await response.json();
+      console.log("Manifest data received:", manifest);
+      if (Array.isArray(manifest)) {
+        return this.scan(manifest);
+      }
+      if (manifest !== null && typeof manifest === "object") {
+        const data = manifest;
+        const files = data.files ?? data.manifest;
+        if (Array.isArray(files)) {
+          return this.scan(files);
+        }
+      }
+      throw new Error(
+        "Unsupported manifest format. Expected an array of files or an object containing files."
+      );
+    } catch (error) {
+      console.error(
+        "[SpineAssetOrganizer] Failed to load manifest:",
+        error
+      );
+      throw error;
+    } finally {
+      console.groupEnd();
+    }
+  }
+  /**
+   * Groups assets by their detected Spine runtime version.
+   */
+  groupByVersion() {
+    const groups = /* @__PURE__ */ new Map();
+    for (const asset of this.organized.spine) {
+      const version = asset.version ?? "Unknown";
+      if (!groups.has(version)) {
+        groups.set(version, []);
+      }
+      groups.get(version).push(asset);
+    }
+    console.group("[SpineAssetOrganizer] groupByVersion()");
+    for (const [version, assets] of groups) {
+      console.log(version, assets);
+    }
+    console.groupEnd();
+    return groups;
+  }
+  /**
+   * Converts a stored file path to a browser-usable URL.
+   */
+  url(file) {
+    const path2 = typeof file === "string" ? file : file.path;
+    return this.resolveUrl(path2);
+  }
+  /**
+   * Finds an organized Spine asset by ID or skeleton path.
+   */
+  get(id) {
+    const normalizedId = this.absoluteUrl(id);
+    return this.organized.spine.find(
+      (asset) => asset.id === normalizedId || asset.skeleton !== null && this.absoluteUrl(asset.skeleton.path) === normalizedId
+    );
+  }
+  /**
+   * Prints the complete organization in a readable console tree.
+   */
+  printOrganization(result) {
+    console.group("\u{1F4E6} FINAL SPINE ASSET ORGANIZATION");
+    console.log("Total input files:", result.files.length);
+    console.log("Spine assets:", result.spine.length);
+    console.log("Spritesheets:", result.spritesheets.length);
+    console.log("Orphan files:", result.orphans.length);
+    if (result.spine.length === 0) {
+      console.warn(
+        "No skeletons were organized. Check the manifest and file extensions."
+      );
+    }
+    result.spine.forEach((asset, index) => {
+      console.group(
+        `${index + 1}. ${asset.project} / ${asset.skeleton?.name ?? asset.id}`
+      );
+      console.log("Project:", asset.project);
+      console.log("Directory:", asset.directory);
+      console.log("Skeleton:", asset.skeleton?.path ?? "NOT FOUND");
+      console.log("Format:", asset.format);
+      console.log("Spine version:", asset.version ?? "Unknown");
+      console.log("Atlas count:", asset.atlases.length);
+      asset.atlases.forEach((atlas, atlasIndex) => {
+        console.log(`Atlas ${atlasIndex + 1}:`, atlas.path);
+      });
+      console.log("Texture count:", asset.textures.length);
+      asset.textures.forEach((texture, textureIndex) => {
+        console.log(`Texture ${textureIndex + 1}:`, texture.path);
+      });
+      console.log("Missing texture pages:", asset.missingTextures);
+      console.log("Complete:", asset.complete);
+      if (asset.atlases.length === 0) {
+        console.warn("No atlas was matched.");
+      }
+      if (asset.textures.length === 0) {
+        console.warn("No texture pages were matched.");
+      }
+      console.groupEnd();
+    });
+    if (result.orphans.length > 0) {
+      console.group("\u26A0\uFE0F Unmatched files");
+      console.table(
+        result.orphans.map((file) => ({
+          name: file.name,
+          path: file.path,
+          extension: this.ext(file.name)
+        }))
+      );
+      console.groupEnd();
+    }
+    console.groupEnd();
+  }
+  /**
+   * Flattens supported input and removes duplicate file paths.
+   */
+  flatten(input) {
+    let candidates = input;
+    if (input !== null && typeof input === "object" && !Array.isArray(input)) {
+      const value = input;
+      candidates = value.files ?? value.manifest ?? [];
+    }
+    if (!Array.isArray(candidates)) {
+      console.warn(
+        "Expected an array of UploadedFile objects. Received:",
+        candidates
+      );
+      return [];
+    }
+    const validFiles = candidates.filter(
+      (item) => {
+        if (item === null || typeof item !== "object") {
+          console.warn("Skipping invalid manifest entry:", item);
+          return false;
+        }
+        const file = item;
+        const valid = typeof file.name === "string" && typeof file.path === "string" && typeof file.size === "number";
+        if (!valid) {
+          console.warn("File entry is missing required fields:", item);
+        }
+        return valid;
+      }
+    );
+    const unique = /* @__PURE__ */ new Map();
+    for (const file of validFiles) {
+      const key = this.absoluteUrl(file.path);
+      if (unique.has(key)) {
+        console.warn("Duplicate file path ignored:", file.path);
+        continue;
+      }
+      unique.set(key, file);
+    }
+    return [...unique.values()];
+  }
+  /**
+   * Locates a texture page declared inside an atlas.
+   */
+  findAtlasTexture(pageName, atlas, textures) {
+    const atlasDirectory = this.directoryKey(atlas.path);
+    const expectedPath = this.joinUrl(atlasDirectory, pageName);
+    const expected = this.absoluteUrl(expectedPath);
+    const samePath = textures.find(
+      (texture) => this.absoluteUrl(texture.path) === expected
+    );
+    if (samePath) {
+      return samePath;
+    }
+    const normalizedPage = this.normalizePath(pageName);
+    const sameDirectoryAndName = textures.find((texture) => {
+      return this.directoryKey(texture.path) === atlasDirectory && this.normalizePath(texture.name) === normalizedPage;
+    });
+    if (sameDirectoryAndName) {
+      return sameDirectoryAndName;
+    }
+    const relativePath = this.absoluteUrl(
+      this.joinUrl(atlasDirectory, normalizedPage)
+    );
+    const relativeMatch = textures.find(
+      (texture) => this.absoluteUrl(texture.path) === relativePath
+    );
+    if (relativeMatch) {
+      return relativeMatch;
+    }
+    console.warn("Texture lookup failed:", {
+      pageName,
+      atlas: atlas.path,
+      expectedPath,
+      availableTextures: textures.map((texture) => texture.path)
+    });
+    return void 0;
+  }
+  /**
+   * Reads page names from a standard Spine .atlas text file.
+   *
+   * Atlas page headers are image filenames such as:
+   * character.png
+   *
+   * Region entries are indented and are not treated as pages.
+   */
+  parseAtlasPages(atlas) {
+    const content = atlas.content ?? atlas.text;
+    if (typeof content !== "string" || content.length === 0) {
+      console.warn(
+        "Atlas content is unavailable in the manifest entry:",
+        atlas.path,
+        "Texture pages cannot be extracted from this entry alone."
+      );
+      return [];
+    }
+    const pages = [];
+    const imageExtensions = this.textureExtensions;
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (line.length > 0 && !/^\s/.test(line) && imageExtensions.some(
+        (ext) => trimmed.toLowerCase().endsWith(ext)
+      )) {
+        pages.push(trimmed);
+      }
+    }
+    const uniquePages = [...new Set(pages)];
+    console.log("Parsed atlas pages:", atlas.path, uniquePages);
+    return uniquePages;
+  }
+  /**
+   * Reads version metadata from JSON skeleton data.
+   * Binary skeletons require binary parsing or runtime metadata.
+   */
+  readVersion(file) {
+    if (this.ext(file.name) === ".skel") {
+      const binaryVersion = this.readBinaryVersion(file);
+      console.log(
+        "Binary version detection:",
+        file.path,
+        binaryVersion
+      );
+      return binaryVersion;
+    }
+    const content = file.content ?? file.text;
+    if (typeof content !== "string") {
+      console.warn(
+        "Skeleton JSON content unavailable for version detection:",
+        file.path
+      );
+      return null;
+    }
+    try {
+      const json = JSON.parse(content);
+      const version = json?.skeleton?.spine ?? json?.spine ?? null;
+      console.log("JSON Spine version:", file.path, version);
+      return typeof version === "string" ? version : null;
+    } catch (error) {
+      console.warn(
+        "Could not parse skeleton JSON:",
+        file.path,
+        error
+      );
+      return null;
+    }
+  }
+  /**
+   * Binary Spine versions cannot be reliably identified by filename alone.
+   * Return null when no trustworthy version metadata is available.
+   */
+  readBinaryVersion(_file) {
+    return null;
+  }
+  ext(filename) {
+    const name = filename.toLowerCase();
+    if (name.endsWith(".atlas.txt")) {
+      return ".atlas.txt";
+    }
+    const index = name.lastIndexOf(".");
+    return index >= 0 ? name.slice(index) : "";
+  }
+  baseName(filename) {
+    const extension = this.ext(filename);
+    return extension ? filename.slice(0, -extension.length).toLowerCase() : filename.toLowerCase();
+  }
+  directoryKey(path2) {
+    const normalized = this.normalizePath(path2);
+    const index = normalized.lastIndexOf("/");
+    return index >= 0 ? normalized.slice(0, index) : "";
+  }
+  projectName(path2) {
+    const normalized = this.normalizePath(path2);
+    const segments = normalized.split("/").filter(Boolean);
+    const assetsIndex = segments.lastIndexOf("assets");
+    if (assetsIndex >= 0 && segments.length > assetsIndex + 2) {
+      return segments[assetsIndex + 1].toLowerCase();
+    }
+    return segments.length > 1 ? segments[0].toLowerCase() : "default";
+  }
+  absoluteUrl(path2) {
+    return this.normalizePath(path2).toLowerCase();
+  }
+  joinUrl(directory, filename) {
+    return this.normalizePath(
+      directory ? `${directory}/${filename}` : filename
+    );
+  }
+  resolveUrl(path2) {
+    const normalized = this.normalizePath(path2);
+    if (/^https?:\/\//i.test(normalized)) {
+      return normalized;
+    }
+    return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  }
+  normalizePath(path2) {
+    const withoutQuery = path2.split(/[?#]/)[0];
+    return withoutQuery.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/(^|\/)\.\//g, "$1").replace(/\/$/, "");
+  }
+  safeDecode(value) {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
     }
   }
 };
@@ -53923,7 +54470,69 @@ var FileUpload = class {
 var Main = class extends Game {
   constructor() {
     super();
-    new FileUpload();
+    console.log("\u{1F680} Initializing Spine Viewer...");
+    this.fileUpload = new FileUpload();
+    this.organizer = new SpineAssetOrganizer();
+    this.registerAssetEvents();
+    console.log("\u2705 Spine Viewer initialized.");
+  }
+  registerAssetEvents() {
+    engine.eventDispatcher.addCustomListener(
+      { type: "custom", name: "asset_process_complete" },
+      async (event) => {
+        console.group("\u{1F4E5} ASSET PROCESS COMPLETE");
+        try {
+          console.log("Raw uploaded data:", event.data);
+          const files = event.data;
+          if (!Array.isArray(files)) {
+            console.error(
+              "\u274C Expected an array of uploaded files.",
+              files
+            );
+            return;
+          }
+          console.log("Total received files:", files.length);
+          console.table(
+            files.map((file) => ({
+              name: file.name,
+              path: file.path,
+              size: file.size
+            }))
+          );
+          console.log("\u{1F50E} Organizing Spine assets...");
+          let organized = this.organizer.organize(files);
+          console.log("Initial organization:", organized);
+          console.log("\u{1F4D6} Enriching assets...");
+          await Promise.all(
+            organized.spine.map(
+              (asset) => this.organizer.enrich(asset)
+            )
+          );
+          console.log("Final organization:", organized);
+          console.log("\u{1F4DA} Spine assets grouped by version:");
+          const versionGroups = this.organizer.groupByVersion();
+          console.log(versionGroups);
+          engine.eventDispatcher.DISPATCH({
+            type: "custom",
+            name: "assets_organized",
+            data: organized
+          });
+          console.log("\u2705 assets_organized event dispatched.");
+        } catch (error) {
+          console.error("\u274C Asset processing failed:", error);
+        } finally {
+          console.groupEnd();
+        }
+      }
+    );
+    engine.eventDispatcher.addCustomListener(
+      { type: "custom", name: "assets_organized" },
+      (event) => {
+        console.group("\u{1F4E6} ASSETS ORGANIZED EVENT");
+        console.log("Assets organized:", event.data);
+        console.groupEnd();
+      }
+    );
   }
 };
 new Main();
